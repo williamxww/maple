@@ -311,7 +311,7 @@ public class ColStoreTableManager implements TableManager {
             }
         }
         
-        tblFileInfo.setFileType(DBFileType.COLUMNSTORE_DATA_FILE);
+        tblFileInfo.setFileType(DBFileType.CS_DATA_FILE);
 		
 	}
 	

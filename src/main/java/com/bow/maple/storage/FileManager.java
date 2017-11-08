@@ -24,7 +24,6 @@ import java.io.RandomAccessFile;
  */
 public class FileManager {
 
-    /** A logging object for reporting anything interesting that happens. */
     private static Logger logger = Logger.getLogger(FileManager.class);
 
 
@@ -56,23 +55,19 @@ public class FileManager {
 
     /**
      * 获取每页开始的字节偏移量，pageNo*pageSize<br/>
-     * This helper function calculates the file-position of the specified page.
-     * Obviously, this value is dependent on the page size.
      * @param dbFile the database file to compute the page-start for
      * @param pageNo the page number to access
      *
-     * @return the offset of the specified page from the start of the database
-     *         file
+     * @return 获取每页开始的字节偏移量
      *
      * @throws IllegalArgumentException if the page number is negative
      */
     private long getPageStart(DBFile dbFile, int pageNo) {
-        if (pageNo < 0)
+        if (pageNo < 0){
             throw new IllegalArgumentException("pageNo must be >= 0, got " + pageNo);
-
+        }
         long pageStart = pageNo;
         pageStart *= (long) dbFile.getPageSize();
-
         return pageStart;
     }
 

@@ -15,33 +15,38 @@ public enum DBFileType {
      * stores them in no particular order.
      * 支持变长元组存储，并且是没有指定顺序的
      */
-    HEAP_DATA_FILE(1),
+    HEAP_DATA_FILE(0x01),
 
 
     /**
      * Represents an index file that uses a btree structure to organize the
      * data.
      */
-    BTREE_INDEX_FILE(10),
+    BTREE_INDEX_FILE(0x0A),
 
 
     /**
      * Represents a transaction-state file used for write-ahead logging and
      * recovery.
      */
-    TXNSTATE_FILE(20),
+    TXNSTATE_FILE(0x14),
 
     /**
      * Represents a write-ahead log file used for transaction processing and
      * recovery.
      */
-    WRITE_AHEAD_LOG_FILE(21),
+    WRITE_AHEAD_LOG_FILE(0x15),
     
     
     /**
      * 列式存储的文件类型
      */
-    COLUMNSTORE_DATA_FILE(0x1F);
+    CS_DATA_FILE(0x1F),
+
+    /**
+     * 表结构描述文件
+     */
+    FRM_FILE(0x20);
 
 
     private int id;

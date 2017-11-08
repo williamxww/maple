@@ -322,6 +322,42 @@ public class StringUtil {
 		}
 	}
 
+    /**
+     * 将给定带有单位的字符串转为long
+     * 
+     * @param param like 3k,3m,3g
+     * @return 3000
+     * @throws NumberFormatException,NullPointerException 外部需要关注此异常
+     */
+    public static long toLongWithUnit(final String param) {
+
+        String str = param.trim().toLowerCase();
+
+        long scale = 1;
+        if (str.length() > 1) {
+            char modifierChar = str.charAt(str.length() - 1);
+            boolean removeModifier = true;
+            if (modifierChar == 'k') {
+                scale = 1024;
+            } else if (modifierChar == 'm') {
+                scale = 1024 * 1024;
+            } else if (modifierChar == 'g') {
+                scale = 1024 * 1024 * 1024;
+            } else {
+                removeModifier = false;
+            }
+
+            if (removeModifier) {
+                str = str.substring(0, str.length() - 1);
+            }
+
+        }
+
+        long val = Long.parseLong(str);
+        val *= scale;
+        return val;
+    }
+
 	/**
 	 * 字符串转double
 	 * 

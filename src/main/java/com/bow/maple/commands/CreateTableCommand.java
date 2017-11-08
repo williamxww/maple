@@ -132,7 +132,7 @@ public class CreateTableCommand extends Command {
         logger.debug("Creating a TableFileInfo object describing the new table " + getTableName() + ".");
         TableFileInfo tblFileInfo = new TableFileInfo(getTableName());
         if("columnStore".equalsIgnoreCase(engine)){
-            tblFileInfo.setFileType(DBFileType.COLUMNSTORE_DATA_FILE);
+            tblFileInfo.setFileType(DBFileType.CS_DATA_FILE);
         }else{
             tblFileInfo.setFileType(DBFileType.HEAP_DATA_FILE);
         }

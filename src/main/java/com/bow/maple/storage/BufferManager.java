@@ -12,10 +12,12 @@ import java.util.Map;
 
 import com.bow.maple.transactions.TransactionManager;
 import com.bow.maple.util.PropertiesUtil;
-import org.apache.log4j.Logger;
+import com.bow.maple.util.StringUtil;
 
 import com.bow.maple.client.SessionState;
 import com.bow.maple.storage.writeahead.LogSequenceNumber;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 /**
@@ -119,7 +121,7 @@ public class BufferManager {
 
 
     /** A logging object for reporting anything interesting that happens. */
-    private static Logger logger = Logger.getLogger(BufferManager.class);
+    private static Logger logger = LoggerFactory.getLogger(BufferManager.class);
 
 
     private FileManager fileManager;
@@ -184,44 +186,21 @@ public class BufferManager {
         pinnedPagesBySessionID = new HashMap<Integer, HashSet<PinnedPageInfo>>();
     }
 
-
+    /**
+     * 配置最大缓存
+     */
     private void configureMaxCacheSize() {
         // Set the default up-front; it's just easier that way.
         maxCacheSize = DEFAULT_PAGECACHE_SIZE;
 
         String str = PropertiesUtil.getProperty(PROP_PAGECACHE_SIZE);
         if (str != null) {
-            str = str.trim().toLowerCase();
-
-            long scale = 1;
-            if (str.length() > 1) {
-                char modifierChar = str.charAt(str.length() - 1);
-                boolean removeModifier = true;
-                if (modifierChar == 'k')
-                    scale = 1024;
-                else if (modifierChar == 'm')
-                    scale = 1024 * 1024;
-                else if (modifierChar == 'g')
-                    scale = 1024 * 1024 * 1024;
-                else
-                    removeModifier = false;
-
-                if (removeModifier)
-                    str = str.substring(0, str.length() - 1);
-            }
 
             try {
-                maxCacheSize = Long.parseLong(str);
-                maxCacheSize *= scale;
-            }
-            catch (NumberFormatException e) {
-                logger.error(String.format(
-                    "Could not parse page-cache size value \"%s\"; " +
-                    "using default value of %d bytes",
-                    System.getProperty(PROP_PAGECACHE_SIZE),
-                    DEFAULT_PAGECACHE_SIZE));
-
-                maxCacheSize = DEFAULT_PAGECACHE_SIZE;
+                maxCacheSize = StringUtil.toLongWithUnit(str);
+            } catch (NumberFormatException e) {
+                logger.error("Could not parse page-cache size value {}; using default value of {} bytes", str,
+                        DEFAULT_PAGECACHE_SIZE);
             }
         }
     }
@@ -267,8 +246,10 @@ public class BufferManager {
     
     
     public void addFile(DBFile dbFile) {
-        if (dbFile == null)
+        if (dbFile == null){
             throw new IllegalArgumentException("dbFile cannot be null");
+        }
+
 
         String filename = dbFile.getDataFile().getName();
         if (cachedFiles.containsKey(filename)) {
@@ -292,8 +273,7 @@ public class BufferManager {
         int sessionID = SessionState.get().getSessionID();
         PinnedPageInfo pp = new PinnedPageInfo(sessionID, dbPage);
         
-        // First, add it to the overall set of pinned pages.
-        
+        // 将pinnedPage添加到pinnedPages
         if (pinnedPages.add(pp)) {
             dbPage.incPinCount();
             logger.debug(String.format("Session %d is pinning page [%s,%d].  " +
@@ -301,46 +281,38 @@ public class BufferManager {
                 dbPage.getPageNo(), dbPage.getPinCount()));
         }
         
-        // Next, add it to the set of pages pinned by this particular session.
-        // (This makes it easier to unpin all pages used by this session.)
-        
+
+        //将pinnedPage添加到pinnedPagesBySessionID，方便查找
         HashSet<PinnedPageInfo> pinnedBySession = pinnedPagesBySessionID.get(sessionID);
-        
         if (pinnedBySession == null) {
             pinnedBySession = new HashSet<PinnedPageInfo>();
             pinnedPagesBySessionID.put(sessionID, pinnedBySession);
         }
-
         pinnedBySession.add(pp);
     }
-
 
     public void unpinPage(DBPage dbPage) {
         // If the page is pinned by the session then unpin it.
         int sessionID = SessionState.get().getSessionID();
         PinnedPageInfo pp = new PinnedPageInfo(sessionID, dbPage);
 
-        // First, remove it from the overall set of pinned pages.
-        
+        // 从 pinned page set中移除
         if (pinnedPages.remove(pp)) {
             dbPage.decPinCount();
-            logger.debug(String.format("Session %d is unpinning page " +
-                "[%s,%d].  New pin-count is %d.", sessionID, dbPage.getDBFile(),
-                dbPage.getPageNo(), dbPage.getPinCount()));
+            logger.debug(String.format("Session %d is unpinning page " + "[%s,%d].  New pin-count is %d.", sessionID,
+                    dbPage.getDBFile(), dbPage.getPageNo(), dbPage.getPinCount()));
         }
 
-        // Next, remove it from the set of pages pinned by this particular
-        // session.
+        // 从 pinnedBySession中移除
+        HashSet<PinnedPageInfo> pinnedBySession = pinnedPagesBySessionID.get(sessionID);
 
-        HashSet<PinnedPageInfo> pinnedBySession =
-            pinnedPagesBySessionID.get(sessionID);
-        
         if (pinnedBySession != null) {
             pinnedBySession.remove(pp);
 
-            // If the set becomes empty, remove the hash-set for the session.
-            if (pinnedBySession.isEmpty())
+            // pinned page全移除后，将此session entry删除
+            if (pinnedBySession.isEmpty()) {
                 pinnedPagesBySessionID.remove(sessionID);
+            }
         }
     }
 

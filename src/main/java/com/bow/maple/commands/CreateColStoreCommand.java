@@ -70,7 +70,7 @@ public class CreateColStoreCommand extends CreateTableCommand {
 		logger.debug("Creating a TableFileInfo object describing the new table " +
 				getTableName() + ".");
 		TableFileInfo tblFileInfo = new TableFileInfo(getTableName());
-		tblFileInfo.setFileType(DBFileType.COLUMNSTORE_DATA_FILE);
+		tblFileInfo.setFileType(DBFileType.CS_DATA_FILE);
 		TableSchema schema = tblFileInfo.getSchema();
 		for (ColumnInfo colInfo : getColumnInfos()) {
 			try {

@@ -117,7 +117,7 @@ public class DPJoinPlanner implements Planner {
         if (fromClause.isBaseTable()) {
             TableFileInfo tableInfo = StorageManager.getInstance().openTable(fromClause.getTableName());
 
-            if (tableInfo.getFileType() == DBFileType.COLUMNSTORE_DATA_FILE) {
+            if (tableInfo.getFileType() == DBFileType.CS_DATA_FILE) {
                 logger.debug("Jumping to ColumnStore planner.");
                 PlanNode plan = new CSProjectNode(selClause, tableInfo);
                 plan.prepare();

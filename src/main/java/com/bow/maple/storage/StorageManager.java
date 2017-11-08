@@ -244,7 +244,7 @@ public class StorageManager {
         fileTypeManagers.put(DBFileType.BTREE_INDEX_FILE,
             new BTreeIndexManager(this));
 
-        fileTypeManagers.put(DBFileType.COLUMNSTORE_DATA_FILE,
+        fileTypeManagers.put(DBFileType.CS_DATA_FILE,
         	new ColStoreTableManager(this));
     }
 
@@ -501,7 +501,7 @@ public class StorageManager {
 
         // Maximum page size for column store files. Working OLAP data has huge
         // columns.
-        if (type == DBFileType.COLUMNSTORE_DATA_FILE) {
+        if (type == DBFileType.CS_DATA_FILE) {
             pageSize = DBFile.MAX_PAGESIZE;
         }
 
@@ -511,7 +511,7 @@ public class StorageManager {
 
         tblFileInfo.setDBFile(dbFile);
         // 列式数据库还需要为每列创建一个文件
-        if (type == DBFileType.COLUMNSTORE_DATA_FILE) {
+        if (type == DBFileType.CS_DATA_FILE) {
             // 列式存储，每个列形成一个文件
             TableSchema schema = tblFileInfo.getSchema();
             for (int i = 0; i < schema.numColumns(); i++) {
@@ -645,7 +645,7 @@ public class StorageManager {
         	fileManager.deleteDBFile(dbf);
         }
 
-        if (tblFileInfo.getFileType() == DBFileType.COLUMNSTORE_DATA_FILE)
+        if (tblFileInfo.getFileType() == DBFileType.CS_DATA_FILE)
         {
         	// Have to delete the directory as well...
         	tblFileInfo.getDBFile(1).getDataFile().getParentFile().delete();
