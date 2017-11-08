@@ -1,0 +1,12 @@
+/target/
+/.settings/
+/.externalToolBuilders/
+.classpath
+.project
+/.idea/
+*.iml
+*.class
+
+/datafiles/
+/gen/
+/test_datafiles/
