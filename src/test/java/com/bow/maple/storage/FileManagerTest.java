@@ -10,7 +10,7 @@ import org.junit.Test;
  * 此类便于演示FileManager的功能
  */
 @Ignore
-public class TestFileManager {
+public class FileManagerTest {
 
     private FileManager fileMgr;
 

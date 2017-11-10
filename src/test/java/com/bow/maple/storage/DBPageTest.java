@@ -10,7 +10,7 @@ import org.junit.Test;
  * This test class exercises the functionality of the
  * {@link DBPage} class.
  **/
-public class TestDBPage extends StorageTestCase {
+public class DBPageTest extends StorageTestCase {
 
     /**
      * This is the filename used for the tests in this class.

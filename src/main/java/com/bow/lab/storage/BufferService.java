@@ -1,5 +1,4 @@
-package com.bow.maple.storage;
-
+package com.bow.lab.storage;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -9,16 +8,21 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
-import com.bow.maple.transactions.TransactionManager;
-import com.bow.maple.util.PropertiesUtil;
-import com.bow.maple.util.StringUtil;
-
-import com.bow.maple.client.SessionState;
-import com.bow.maple.storage.writeahead.LogSequenceNumber;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.bow.maple.client.SessionState;
+import com.bow.maple.storage.DBFile;
+import com.bow.maple.storage.DBFileType;
+import com.bow.maple.storage.DBPage;
+import com.bow.maple.storage.FileManager;
+import com.bow.maple.storage.StorageManager;
+import com.bow.maple.storage.writeahead.LogSequenceNumber;
+import com.bow.maple.transactions.TransactionManager;
+import com.bow.maple.util.PropertiesUtil;
+import com.bow.maple.util.StringUtil;
 
 /**
  * The buffer manager reduces the number of disk IO operations by managing an
@@ -27,7 +31,7 @@ import org.slf4j.LoggerFactory;
  * @todo Add integrity checks, e.g. to make sure every cached page's file
  *       appears in the collection of cached files.
  */
-public class BufferManager {
+public class BufferService {
 
     /**
      * The system property that can be used to specify the size of the page
@@ -38,13 +42,11 @@ public class BufferManager {
     /** The default page-cache size is defined to be 4MB. */
     public static final long DEFAULT_PAGECACHE_SIZE = 4 * 1024 * 1024;
 
-
     /**
      * The system property that can be used to specify the page replacement
      * policy in the buffer manager.
      */
     public static final String PROP_PAGECACHE_POLICY = "nanodb.pagecache.policy";
-
 
     /**
      * 封装了数据文件和页号
@@ -55,7 +57,7 @@ public class BufferManager {
         public int pageNo;
 
         public CachedPageInfo(DBFile dbFile, int pageNo) {
-            if (dbFile == null){
+            if (dbFile == null) {
                 throw new IllegalArgumentException("dbFile cannot be null");
             }
             this.dbFile = dbFile;
@@ -80,32 +82,27 @@ public class BufferManager {
         }
     }
 
-
     /**
-     * This helper class keeps track of a data page that is currently "pinned"
-     * or in use by a client.  This prevents the page from being flushed out
-     * of the cache while the client is using it.
+     * 被钉住的page是不能被移除缓存
      */
     private static class PinnedPageInfo {
-        /** The session ID of the session that has this page pinned. */
+        /**
+         * pin page的session
+         */
         public int sessionID;
 
-        /** The page that is pinned. */
         public DBPage dbPage;
-
 
         public PinnedPageInfo(int sessionID, DBPage dbPage) {
             this.sessionID = sessionID;
             this.dbPage = dbPage;
         }
 
-
         @Override
         public boolean equals(Object obj) {
             if (obj instanceof PinnedPageInfo) {
                 PinnedPageInfo other = (PinnedPageInfo) obj;
-                return sessionID == other.sessionID &&
-                    dbPage.equals(other.dbPage);
+                return sessionID == other.sessionID && dbPage.equals(other.dbPage);
             }
             return false;
         }
@@ -119,53 +116,42 @@ public class BufferManager {
         }
     }
 
-
-    /** A logging object for reporting anything interesting that happens. */
-    private static Logger logger = LoggerFactory.getLogger(BufferManager.class);
-
+    private static Logger logger = LoggerFactory.getLogger(BufferService.class);
 
     private FileManager fileManager;
-
 
     /**
      * Map<filename,DBFile>所有已打开的文件
      */
     private Map<String, DBFile> cachedFiles;
 
-
     /**
      * 用来缓存数据页(不包括WAL pages)，此map拥有相关的失效策略如LRU
      */
     private Map<CachedPageInfo, DBPage> cachedPages;
 
-
     /**
-     * This collection holds all pages that are pinned by various sessions
-     * that are currently accessing the database.
+     * This collection holds all pages that are pinned by various sessions that
+     * are currently accessing the database.
      */
     private HashSet<PinnedPageInfo> pinnedPages;
 
-
     /**
-     * This collection maps session IDs to the pages that each session has
-     * pinned.
+     * Map<sessionId, Set<PinnedPageInfo>>
      */
-    private HashMap<Integer, HashSet<PinnedPageInfo>> pinnedPagesBySessionID;
-
+    private Map<Integer, Set<PinnedPageInfo>> pinnedPagesBySessionID;
 
     /**
      * 总共已缓存字节数
      */
     private long totalBytesCached;
 
-
     /**
      * 配置的缓存大小
      */
     private long maxCacheSize;
 
-
-    public BufferManager(FileManager fileManager) {
+    public BufferService(FileManager fileManager) {
         this.fileManager = fileManager;
 
         configureMaxCacheSize();
@@ -173,13 +159,12 @@ public class BufferManager {
         cachedFiles = new LinkedHashMap();
 
         String replacementPolicy = configureReplacementPolicy();
-        cachedPages = new LinkedHashMap(16, 0.75f,
-            "lru".equals(replacementPolicy));
+        cachedPages = new LinkedHashMap(16, 0.75f, "lru".equals(replacementPolicy));
 
         totalBytesCached = 0;
-        
+
         pinnedPages = new HashSet<PinnedPageInfo>();
-        pinnedPagesBySessionID = new HashMap<Integer, HashSet<PinnedPageInfo>>();
+        pinnedPagesBySessionID = new HashMap<Integer, Set<PinnedPageInfo>>();
     }
 
     /**
@@ -200,7 +185,6 @@ public class BufferManager {
         }
     }
 
-
     private String configureReplacementPolicy() {
         String str = PropertiesUtil.getProperty(PROP_PAGECACHE_POLICY);
         if (str != null) {
@@ -208,21 +192,20 @@ public class BufferManager {
 
             if (!("lru".equals(str) || "fifo".equals(str))) {
                 logger.error(String.format(
-                    "Unrecognized value \"%s\" for page-cache replacement " +
-                    "policy; using default value of LRU.", str));
+                        "Unrecognized value \"%s\" for page-cache replacement " + "policy; using default value of LRU.",
+                        str));
             }
         }
 
         return str;
     }
 
-
     /**
      * Retrieves the specified {@link DBFile} from the buffer manager, if it has
      * already been opened.
      *
-     * @param filename The filename of the database file to retrieve.  This
-     *        should be ONLY the database filename, no path.  The path is
+     * @param filename The filename of the database file to retrieve. This
+     *        should be ONLY the database filename, no path. The path is
      *        expected to be relative to the database's base directory.
      *
      * @return the {@link DBFile} corresponding to the filename, if it has
@@ -232,56 +215,50 @@ public class BufferManager {
     public DBFile getFile(String filename) {
         DBFile dbFile = cachedFiles.get(filename);
 
-        logger.debug(String.format(
-            "Requested file %s is%s in file-cache.",
-            filename, (dbFile != null ? "" : " NOT")));
+        logger.debug(String.format("Requested file %s is%s in file-cache.", filename, (dbFile != null ? "" : " NOT")));
 
         return dbFile;
     }
 
-
     /**
      * 将dbFile存放在内存中
+     * 
      * @param dbFile 打开的文件
      */
     public void addFile(DBFile dbFile) {
-        if (dbFile == null){
+        if (dbFile == null) {
             throw new IllegalArgumentException("dbFile cannot be null");
         }
 
         String filename = dbFile.getDataFile().getName();
         if (cachedFiles.containsKey(filename)) {
-            throw new IllegalStateException(
-                "File cache already contains file " + filename);
+            throw new IllegalStateException("File cache already contains file " + filename);
         }
-        
-        // NOTE:  If we want to keep a cap on how many files are opened, we
-        //        would do that here.
 
-        logger.debug(String.format( "Adding file %s to file-cache.", filename));
-        
+        // NOTE: If we want to keep a cap on how many files are opened, we
+        // would do that here.
+
+        logger.debug(String.format("Adding file %s to file-cache.", filename));
+
         cachedFiles.put(filename, dbFile);
     }
-    
-    
+
     public void pinPage(DBPage dbPage) {
         // Make sure this page is pinned by the session so that we don't
         // flush it until the session is done with it.
-        
+
         int sessionID = SessionState.get().getSessionID();
         PinnedPageInfo pp = new PinnedPageInfo(sessionID, dbPage);
-        
+
         // 将pinnedPage添加到pinnedPages
         if (pinnedPages.add(pp)) {
             dbPage.incPinCount();
-            logger.debug(String.format("Session %d is pinning page [%s,%d].  " +
-                "New pin-count is %d.", sessionID, dbPage.getDBFile(),
-                dbPage.getPageNo(), dbPage.getPinCount()));
+            logger.debug(String.format("Session %d is pinning page [%s,%d].  " + "New pin-count is %d.", sessionID,
+                    dbPage.getDBFile(), dbPage.getPageNo(), dbPage.getPinCount()));
         }
-        
 
-        //将pinnedPage添加到pinnedPagesBySessionID，方便查找
-        HashSet<PinnedPageInfo> pinnedBySession = pinnedPagesBySessionID.get(sessionID);
+        // 将pinnedPage添加到pinnedPagesBySessionID，方便查找
+        Set<PinnedPageInfo> pinnedBySession = pinnedPagesBySessionID.get(sessionID);
         if (pinnedBySession == null) {
             pinnedBySession = new HashSet<PinnedPageInfo>();
             pinnedPagesBySessionID.put(sessionID, pinnedBySession);
@@ -302,7 +279,7 @@ public class BufferManager {
         }
 
         // 从 pinnedBySession中移除
-        HashSet<PinnedPageInfo> pinnedBySession = pinnedPagesBySessionID.get(sessionID);
+        Set<PinnedPageInfo> pinnedBySession = pinnedPagesBySessionID.get(sessionID);
 
         if (pinnedBySession != null) {
             pinnedBySession.remove(pp);
@@ -314,11 +291,10 @@ public class BufferManager {
         }
     }
 
-
     /**
-     * This method unpins all pages pinned by the current session.  This is
-     * generally done at the end of each transaction so that pages aren't
-     * pinned forever, and can actually be evicted from the buffer manager.
+     * This method unpins all pages pinned by the current session. This is
+     * generally done at the end of each transaction so that pages aren't pinned
+     * forever, and can actually be evicted from the buffer manager.
      */
     public void unpinAllPages() {
         // Unpin all pages pinned by this session.
@@ -326,8 +302,7 @@ public class BufferManager {
 
         // Remove the set of pages pinned by this session, and save the
         // return-value so we can iterate through it and unpin each page.
-        HashSet<PinnedPageInfo> pinnedBySession =
-            pinnedPagesBySessionID.remove(sessionID);
+        Set<PinnedPageInfo> pinnedBySession = pinnedPagesBySessionID.remove(sessionID);
 
         // If no pages pinned, we're done.
         if (pinnedBySession == null)
@@ -338,19 +313,16 @@ public class BufferManager {
 
             pinnedPages.remove(pp);
             dbPage.decPinCount();
-            logger.debug(String.format("Session %d is unpinning page " +
-                "[%s,%d].  New pin-count is %d.", sessionID, dbPage.getDBFile(),
-                dbPage.getPageNo(), dbPage.getPinCount()));
+            logger.debug(String.format("Session %d is unpinning page " + "[%s,%d].  New pin-count is %d.", sessionID,
+                    dbPage.getDBFile(), dbPage.getPageNo(), dbPage.getPinCount()));
         }
     }
-
 
     public DBPage getPage(DBFile dbFile, int pageNo) {
         DBPage dbPage = cachedPages.get(new CachedPageInfo(dbFile, pageNo));
 
-        logger.debug(String.format(
-            "Requested page [%s,%d] is%s in page-cache.",
-            dbFile, pageNo, (dbPage != null ? "" : " NOT")));
+        logger.debug(String.format("Requested page [%s,%d] is%s in page-cache.", dbFile, pageNo,
+                (dbPage != null ? "" : " NOT")));
 
         if (dbPage != null) {
             // Make sure this page is pinned by the session so that we don't
@@ -361,14 +333,14 @@ public class BufferManager {
         return dbPage;
     }
 
-
     /**
      * 将指定page加入到缓存中
+     * 
      * @param dbPage 数据页
      * @throws IOException e
      */
     public void addPage(DBPage dbPage) throws IOException {
-        if (dbPage == null){
+        if (dbPage == null) {
             throw new IllegalArgumentException("dbPage cannot be null");
         }
 
@@ -377,13 +349,12 @@ public class BufferManager {
 
         CachedPageInfo cpi = new CachedPageInfo(dbFile, pageNo);
         if (cachedPages.containsKey(cpi)) {
-            throw new IllegalStateException(String.format(
-                "Page cache already contains page [%s,%d]", dbFile, pageNo));
+            throw new IllegalStateException(String.format("Page cache already contains page [%s,%d]", dbFile, pageNo));
         }
 
-        logger.debug("Adding page [{},{}] to page-cache.",dbFile, pageNo);
+        logger.debug("Adding page [{},{}] to page-cache.", dbFile, pageNo);
 
-        //检查空间是否足够
+        // 检查空间是否足够
         int pageSize = dbPage.getPageSize();
         ensureSpaceAvailable(pageSize);
 
@@ -394,21 +365,20 @@ public class BufferManager {
         pinPage(dbPage);
     }
 
-
     /**
      * This helper function ensures that the buffer manager has the specified
-     * amount of space available.  This is done by removing pages out of the
+     * amount of space available. This is done by removing pages out of the
      * buffer manager's cache
      *
-     * @param bytesRequired the amount of space that should be made available
-     *        in the cache, in bytes
+     * @param bytesRequired the amount of space that should be made available in
+     *        the cache, in bytes
      *
      * @throws IOException if an IO error occurs when flushing dirty pages out
      *         to disk
      */
     private void ensureSpaceAvailable(int bytesRequired) throws IOException {
         // 空间已足够
-        if (bytesRequired + totalBytesCached <= maxCacheSize){
+        if (bytesRequired + totalBytesCached <= maxCacheSize) {
             return;
         }
 
@@ -417,11 +387,9 @@ public class BufferManager {
 
         if (!cachedPages.isEmpty()) {
 
-            Iterator<Map.Entry<CachedPageInfo, DBPage>> entries =
-                cachedPages.entrySet().iterator();
+            Iterator<Map.Entry<CachedPageInfo, DBPage>> entries = cachedPages.entrySet().iterator();
 
-            while (entries.hasNext() &&
-                bytesRequired + totalBytesCached > maxCacheSize) {
+            while (entries.hasNext() && bytesRequired + totalBytesCached > maxCacheSize) {
                 Map.Entry<CachedPageInfo, DBPage> entry = entries.next();
 
                 DBPage oldPage = entry.getValue();
@@ -430,61 +398,39 @@ public class BufferManager {
                     continue;
                 }
 
-                logger.debug(
-                    "    Evicting page [{},{}] from page-cache to make room.",
-                    oldPage.getDBFile(), oldPage.getPageNo());
+                logger.debug("    Evicting page [{},{}] from page-cache to make room.", oldPage.getDBFile(),
+                        oldPage.getPageNo());
 
                 entries.remove();
                 totalBytesCached -= oldPage.getPageSize();
 
-                // If the page is dirty, we need to write its data to disk before
-                // invalidating it.  Otherwise, just invalidate it.
+                // If the page is dirty, we need to write its data to disk
+                // before
+                // invalidating it. Otherwise, just invalidate it.
                 if (oldPage.isDirty()) {
                     logger.debug("    Evicted page is dirty; must save to disk.");
                     dirtyPages.add(oldPage);
-                }
-                else {
+                } else {
                     oldPage.invalidate();
                 }
             }
         }
 
         // If we have any dirty data pages, they need to be flushed to disk.
-        writeDirtyPages(dirtyPages, /* invalidate */ true);
+        writeDirtyPages(dirtyPages,true);
 
-        if (bytesRequired + totalBytesCached > maxCacheSize)
+        if (bytesRequired + totalBytesCached > maxCacheSize){
             logger.warn("Buffer manager is currently using too much space.");
+        }
     }
 
-
-    private void writeDirtyPages(List<DBPage> dirtyPages, boolean invalidate)
-        throws IOException {
-
-        // Make sure that we follow the Write Ahead Logging Rule, by forcing
-        // the WAL out to disk for the maximum page-LSN of any of these pages.
+    private void writeDirtyPages(List<DBPage> dirtyPages, boolean invalidate) throws IOException {
         if (!dirtyPages.isEmpty()) {
-            // First, find out how much of the WAL must be forced to allow
-            // these pages to be written back to disk.
-            LogSequenceNumber maxLSN = null;
             for (DBPage dbPage : dirtyPages) {
                 DBFileType type = dbPage.getDBFile().getType();
-                if (type == DBFileType.WRITE_AHEAD_LOG_FILE ||
-                    type == DBFileType.TXNSTATE_FILE) {
+                if (type == DBFileType.WRITE_AHEAD_LOG_FILE || type == DBFileType.TXNSTATE_FILE) {
                     // We don't log changes to these files.
                     continue;
-                }
-                
-                LogSequenceNumber pageLSN = dbPage.getPageLSN();
-                if (maxLSN == null || pageLSN.compareTo(maxLSN) > 0)
-                    maxLSN = pageLSN;
-            }
-
-            if (maxLSN != null) {
-                // Force the WAL out to the specified point.
-                TransactionManager txnMgr =
-                    StorageManager.getInstance().getTransactionManager();
-                if (txnMgr != null){
-                    txnMgr.forceWAL(maxLSN);
                 }
             }
 
@@ -492,7 +438,7 @@ public class BufferManager {
             for (DBPage dbPage : dirtyPages) {
                 fileManager.saveDBPage(dbPage);
 
-                if (invalidate){
+                if (invalidate) {
                     dbPage.invalidate();
                 }
 
@@ -500,37 +446,33 @@ public class BufferManager {
         }
     }
 
-
     /**
      * This method writes all dirty pages in the specified file, optionally
-     * syncing the file after performing the write.  The pages are not removed
+     * syncing the file after performing the write. The pages are not removed
      * from the buffer manager after writing them; their dirty state is simply
      * cleared.
      *
      * @param dbFile the file whose dirty pages should be written to disk
      *
-     * @param minPageNo dirty pages with a page-number less than this value
-     *        will not be written to disk
+     * @param minPageNo dirty pages with a page-number less than this value will
+     *        not be written to disk
      *
      * @param maxPageNo dirty pages with a page-number greater than this value
      *        will not be written to disk
      *
-     * @param sync If true then the database file will be sync'd to disk;
-     *        if false then no sync will occur.  The sync will always occur,
-     *        in case dirty pages had previously been flushed to disk without
-     *        syncing.
+     * @param sync If true then the database file will be sync'd to disk; if
+     *        false then no sync will occur. The sync will always occur, in case
+     *        dirty pages had previously been flushed to disk without syncing.
      *
      * @throws IOException if an IO error occurs while updating the write-ahead
      *         log, or while writing the file's contents.
      */
-    public void writeDBFile(DBFile dbFile, int minPageNo, int maxPageNo,
-                            boolean sync) throws IOException {
+    public void writeDBFile(DBFile dbFile, int minPageNo, int maxPageNo, boolean sync) throws IOException {
 
-        logger.info(String.format("Writing all dirty pages for file %s to disk%s.",
-            dbFile, (sync ? " (with sync)" : "")));
+        logger.info(
+                String.format("Writing all dirty pages for file %s to disk%s.", dbFile, (sync ? " (with sync)" : "")));
 
-        Iterator<Map.Entry<CachedPageInfo, DBPage>> entries =
-            cachedPages.entrySet().iterator();
+        Iterator<Map.Entry<CachedPageInfo, DBPage>> entries = cachedPages.entrySet().iterator();
 
         ArrayList<DBPage> dirtyPages = new ArrayList<DBPage>();
 
@@ -547,8 +489,8 @@ public class BufferManager {
                 if (pageNo < minPageNo || pageNo > maxPageNo)
                     continue;
 
-                logger.debug(String.format("    Saving page [%s,%d] to disk.",
-                    oldPage.getDBFile(), oldPage.getPageNo()));
+                logger.debug(
+                        String.format("    Saving page [%s,%d] to disk.", oldPage.getDBFile(), oldPage.getPageNo()));
 
                 dirtyPages.add(oldPage);
             }
@@ -562,19 +504,17 @@ public class BufferManager {
         }
     }
 
-
     /**
      * This method writes all dirty pages in the specified file, optionally
-     * syncing the file after performing the write.  The pages are not removed
+     * syncing the file after performing the write. The pages are not removed
      * from the buffer manager after writing them; their dirty state is simply
      * cleared.
      *
      * @param dbFile the file whose dirty pages should be written to disk
      *
-     * @param sync If true then the database file will be sync'd to disk;
-     *        if false then no sync will occur.  The sync will always occur,
-     *        in case dirty pages had previously been flushed to disk without
-     *        syncing.
+     * @param sync If true then the database file will be sync'd to disk; if
+     *        false then no sync will occur. The sync will always occur, in case
+     *        dirty pages had previously been flushed to disk without syncing.
      *
      * @throws IOException if an IO error occurs while updating the write-ahead
      *         log, or while writing the file's contents.
@@ -583,15 +523,14 @@ public class BufferManager {
         writeDBFile(dbFile, 0, Integer.MAX_VALUE, sync);
     }
 
-
     /**
-     * This method writes all dirty pages in the buffer manager to disk.  The
+     * This method writes all dirty pages in the buffer manager to disk. The
      * pages are not removed from the buffer manager after writing them; their
      * dirty state is simply cleared.
      * 
      * @param sync if true, this method will sync all files in which dirty pages
      *        were found, with the exception of WAL files and the
-     *        transaction-state file.  If false, no file syncing will be
+     *        transaction-state file. If false, no file syncing will be
      *        performed.
      *
      * @throws IOException if an IO error occurs while updating the write-ahead
@@ -600,8 +539,7 @@ public class BufferManager {
     public void writeAll(boolean sync) throws IOException {
         logger.info("Writing ALL dirty pages in the Buffer Manager to disk.");
 
-        Iterator<Map.Entry<CachedPageInfo, DBPage>> entries =
-            cachedPages.entrySet().iterator();
+        Iterator<Map.Entry<CachedPageInfo, DBPage>> entries = cachedPages.entrySet().iterator();
 
         ArrayList<DBPage> dirtyPages = new ArrayList<DBPage>();
         HashSet<DBFile> dirtyFiles = new HashSet<DBFile>();
@@ -615,19 +553,17 @@ public class BufferManager {
 
             DBFile dbFile = oldPage.getDBFile();
             DBFileType type = dbFile.getType();
-            if (type != DBFileType.WRITE_AHEAD_LOG_FILE &&
-                type != DBFileType.TXNSTATE_FILE) {
+            if (type != DBFileType.WRITE_AHEAD_LOG_FILE && type != DBFileType.TXNSTATE_FILE) {
                 dirtyFiles.add(oldPage.getDBFile());
             }
 
-            logger.debug(String.format("    Saving page [%s,%d] to disk.",
-                dbFile, oldPage.getPageNo()));
+            logger.debug(String.format("    Saving page [%s,%d] to disk.", dbFile, oldPage.getPageNo()));
 
             dirtyPages.add(oldPage);
         }
 
         writeDirtyPages(dirtyPages, /* invalidate */ false);
-        
+
         if (sync) {
             logger.debug("Synchronizing all files containing dirty pages to disk.");
             for (DBFile dbFile : dirtyFiles)
@@ -637,10 +573,10 @@ public class BufferManager {
 
     /**
      * This method removes all cached pages in the specified file from the
-     * buffer manager, writing out any dirty pages in the process.  This method
+     * buffer manager, writing out any dirty pages in the process. This method
      * is not generally recommended to be used, as it basically defeats the
      * purpose of the buffer manager in the first place; rather, the
-     * {@link #writeDBFile} method should be used instead.  There is a specific
+     * {@link #writeDBFile} method should be used instead. There is a specific
      * situation in which it is used, when a file is being removed from the
      * Buffer Manager by the Storage Manager.
      *
@@ -650,11 +586,9 @@ public class BufferManager {
      *         log, or the file's contents
      */
     public void flushDBFile(DBFile dbFile) throws IOException {
-        logger.info("Flushing all pages for file " + dbFile +
-            " from the Buffer Manager.");
+        logger.info("Flushing all pages for file " + dbFile + " from the Buffer Manager.");
 
-        Iterator<Map.Entry<CachedPageInfo, DBPage>> entries =
-            cachedPages.entrySet().iterator();
+        Iterator<Map.Entry<CachedPageInfo, DBPage>> entries = cachedPages.entrySet().iterator();
 
         ArrayList<DBPage> dirtyPages = new ArrayList<DBPage>();
 
@@ -665,21 +599,20 @@ public class BufferManager {
             if (dbFile.equals(info.dbFile)) {
                 DBPage oldPage = entry.getValue();
 
-                logger.debug(String.format(
-                    "    Evicting page [%s,%d] from page-cache.",
-                    oldPage.getDBFile(), oldPage.getPageNo()));
+                logger.debug(String.format("    Evicting page [%s,%d] from page-cache.", oldPage.getDBFile(),
+                        oldPage.getPageNo()));
 
                 // Remove the page from the cache.
                 entries.remove();
                 totalBytesCached -= oldPage.getPageSize();
 
-                // If the page is dirty, we need to write its data to disk before
-                // invalidating it.  Otherwise, just invalidate it.
+                // If the page is dirty, we need to write its data to disk
+                // before
+                // invalidating it. Otherwise, just invalidate it.
                 if (oldPage.isDirty()) {
                     logger.debug("    Evicted page is dirty; must save to disk.");
                     dirtyPages.add(oldPage);
-                }
-                else {
+                } else {
                     oldPage.invalidate();
                 }
             }
@@ -688,16 +621,14 @@ public class BufferManager {
         writeDirtyPages(dirtyPages, /* invalidate */ true);
     }
 
-
     /**
-     * This method removes all cached pages from the buffer manager, writing
-     * out any dirty pages in the process.  This method is not generally
-     * recommended to be used, as it basically defeats the purpose of the
-     * buffer manager in the first place; rather, the {@link #writeAll} method
-     * should be used instead.  However, this method is useful to cause certain
-     * performance issues to manifest with individual commands, and the Storage
-     * Manager also uses it during shutdown processing to ensure all data is
-     * saved to disk.
+     * This method removes all cached pages from the buffer manager, writing out
+     * any dirty pages in the process. This method is not generally recommended
+     * to be used, as it basically defeats the purpose of the buffer manager in
+     * the first place; rather, the {@link #writeAll} method should be used
+     * instead. However, this method is useful to cause certain performance
+     * issues to manifest with individual commands, and the Storage Manager also
+     * uses it during shutdown processing to ensure all data is saved to disk.
      *
      * @throws IOException if an IO error occurs while updating the write-ahead
      *         log, or the file's contents
@@ -705,8 +636,7 @@ public class BufferManager {
     public void flushAll() throws IOException {
         logger.info("Flushing ALL database pages from the Buffer Manager.");
 
-        Iterator<Map.Entry<CachedPageInfo, DBPage>> entries =
-            cachedPages.entrySet().iterator();
+        Iterator<Map.Entry<CachedPageInfo, DBPage>> entries = cachedPages.entrySet().iterator();
 
         ArrayList<DBPage> dirtyPages = new ArrayList<DBPage>();
 
@@ -715,21 +645,19 @@ public class BufferManager {
 
             DBPage oldPage = entry.getValue();
 
-            logger.debug(String.format(
-                "    Evicting page [%s,%d] from page-cache.",
-                oldPage.getDBFile(), oldPage.getPageNo()));
+            logger.debug(String.format("    Evicting page [%s,%d] from page-cache.", oldPage.getDBFile(),
+                    oldPage.getPageNo()));
 
             // Remove the page from the cache.
             entries.remove();
             totalBytesCached -= oldPage.getPageSize();
 
             // If the page is dirty, we need to write its data to disk before
-            // invalidating it.  Otherwise, just invalidate it.
+            // invalidating it. Otherwise, just invalidate it.
             if (oldPage.isDirty()) {
                 logger.debug("    Evicted page is dirty; must save to disk.");
                 dirtyPages.add(oldPage);
-            }
-            else {
+            } else {
                 oldPage.invalidate();
             }
         }
@@ -737,10 +665,9 @@ public class BufferManager {
         writeDirtyPages(dirtyPages, /* invalidate */ true);
     }
 
-
     /**
      * This method removes a file from the cache, first flushing all pages from
-     * the file out of the cache.  This operation is used by the Storage Manager
+     * the file out of the cache. This operation is used by the Storage Manager
      * to close a data file.
      *
      * @param dbFile the file to remove from the cache.
@@ -753,11 +680,10 @@ public class BufferManager {
         cachedFiles.remove(dbFile.getDataFile().getName());
     }
 
-
     /**
      * This method removes ALL files from the cache, first flushing all pages
      * from the cache so that any dirty pages will be saved to disk (possibly
-     * updating the write-ahead log in the process).  This operation is used by
+     * updating the write-ahead log in the process). This operation is used by
      * the Storage Manager during shutdown.
      *
      * @return a list of the files that were in the cache, so that they can be

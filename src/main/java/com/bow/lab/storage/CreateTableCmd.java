@@ -26,11 +26,12 @@ public class CreateTableCmd extends Command {
         super(Type.DDL);
     }
 
+    private ITableService tableService;
+
     @Override
     public void execute() throws ExecutionException {
-        StorageManager storageManager = StorageManager.getInstance();
         TableFileInfo tblFileInfo = new TableFileInfo(tableName);
-        tblFileInfo.setFileType(DBFileType.HEAP_DATA_FILE);
+        tblFileInfo.setFileType(DBFileType.FRM_FILE);
         TableSchema schema = tblFileInfo.getSchema();
         for (ColumnInfo colInfo : columnInfos) {
             try {
@@ -40,7 +41,7 @@ public class CreateTableCmd extends Command {
             }
         }
         try {
-            storageManager.createTable(tblFileInfo);
+            tableService.createTable(tblFileInfo);
         } catch (IOException ioe) {
             throw new ExecutionException("Can't create table "+tableName, ioe);
         }
@@ -65,5 +66,9 @@ public class CreateTableCmd extends Command {
 
     public void setColumnInfos(List<ColumnInfo> columnInfos) {
         this.columnInfos = columnInfos;
+    }
+
+    public void setTableService(ITableService tableService) {
+        this.tableService = tableService;
     }
 }

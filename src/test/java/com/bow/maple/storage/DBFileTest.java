@@ -10,7 +10,7 @@ import org.junit.Test;
  * This class exercises some of the core utility methods of the {@link DBFile}
  * class.
  */
-public class TestDBFile {
+public class DBFileTest {
 
     /**
      * 有效的page size是大于512，小于65536，且是2的N次幂

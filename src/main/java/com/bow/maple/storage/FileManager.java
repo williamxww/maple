@@ -89,9 +89,9 @@ public class FileManager {
         throws IOException {
 
         File f = new File(baseDir, filename);
-        if (f.exists())
+        if (f.exists()){
             throw new IOException("File " + f + " already exists!");
-
+        }
         logger.debug("Creating new database file " + f + ".");
         return initDBFile(f, type, pageSize);
     }

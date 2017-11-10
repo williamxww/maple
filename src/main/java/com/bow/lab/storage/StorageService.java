@@ -1,6 +1,5 @@
 package com.bow.lab.storage;
 
-import com.bow.maple.storage.BufferManager;
 import com.bow.maple.storage.DBFile;
 import com.bow.maple.storage.DBFileType;
 import com.bow.maple.storage.DBPage;
@@ -15,9 +14,19 @@ import java.io.IOException;
  */
 public class StorageService implements IStorageService {
 
-    private BufferManager bufferManager;
+    private BufferService bufferManager;
 
     private FileManager fileManager;
+
+    /**
+     * 传入fileManager和bufferManager构造一个StorageService实例
+     * @param fileManager 文件管理器
+     * @param bufferManager 缓存管理器
+     */
+    public StorageService(FileManager fileManager, BufferService bufferManager){
+        this.bufferManager = bufferManager;
+        this.fileManager = fileManager;
+    }
 
     @Override
     public DBFile createDBFile(String filename, DBFileType type) throws IOException {

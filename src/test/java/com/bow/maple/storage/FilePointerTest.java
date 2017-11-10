@@ -5,7 +5,7 @@ import org.junit.Test;
 /**
  * This class exercises the functionality of the {@link FilePointer} class.
  */
-public class TestFilePointer {
+public class FilePointerTest {
 
     @Test
     public void testConstructor() {

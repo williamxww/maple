@@ -11,7 +11,6 @@ import com.bow.maple.storage.DBPage;
 import com.bow.maple.storage.writeahead.LogSequenceNumber;
 import com.bow.maple.storage.writeahead.WALRecordType;
 import com.bow.maple.util.PropertiesUtil;
-import org.apache.log4j.Logger;
 
 import com.bow.maple.server.EventDispatcher;
 
@@ -20,6 +19,8 @@ import com.bow.maple.storage.StorageManager;
 
 import com.bow.maple.storage.writeahead.RecoveryInfo;
 import com.bow.maple.storage.writeahead.WALManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
@@ -27,7 +28,7 @@ import com.bow.maple.storage.writeahead.WALManager;
  * NextLSN,记录下一个日志的位置,下一个事务日志接着此处记录.
  */
 public class TransactionManager {
-    private static Logger logger = Logger.getLogger(TransactionManager.class);
+    private static Logger logger = LoggerFactory.getLogger(TransactionManager.class);
 
     /**
      * The system property that can be used to turn on or off transaction
@@ -66,7 +67,7 @@ public class TransactionManager {
     private AtomicInteger nextTxnID;
 
     /**
-     * This is the last value of nextLSN saved to the transaction-state file.
+     * 此LSN对应的记录及其之前的日志记录都已同步到磁盘
      */
     private LogSequenceNumber txnStateNextLSN;
 
@@ -309,59 +310,42 @@ public class TransactionManager {
     }
 
     /**
-     * This method forces the write-ahead log out to at least the specified log
-     * sequence number, syncing the log to ensure that all essential records
-     * have reached the disk itself.
+     * 强制将到lsn为止的所有WAL落盘。
      *
-     * @param lsn All WAL data up to this value must be forced to disk and
-     *        sync'd. This value may be one past the end of the current WAL file
-     *        during normal operation.
+     * @param lsn lsn之前的日志全部要落盘
      *
-     * @throws IOException if an IO error occurs while attempting to force the
-     *         WAL file to disk. If a failure occurs, the database is probably
-     *         going to be broken.
+     * @throws IOException 此处失败了，有可能导致数据库出问题
      */
     public void forceWAL(LogSequenceNumber lsn) throws IOException {
-        // If the WAL has already been forced out past the specified LSN,
-        // we don't need to do anything.
+        // 已刷到磁盘就不处理了
         if (txnStateNextLSN.compareTo(lsn) >= 0) {
             logger.debug(String.format("Request to force WAL to LSN %s " + "unnecessary; already forced to %s.", lsn,
                     txnStateNextLSN));
-
             return;
         }
 
-        // Flush all dirty pages for the write-ahead log, then sync the WAL to
-        // disk.
-
-        // Go through all WAL files that we need to sync the entirety of, and
-        // write/sync them.
+        //将缓存中所有的WAL日志文件落盘
         for (int fileNo = txnStateNextLSN.getLogFileNo(); fileNo < lsn.getLogFileNo(); fileNo++) {
-
             String walFileName = WALManager.getWALFileName(fileNo);
             DBFile walFile = bufferManager.getFile(walFileName);
-            if (walFile != null)
-                bufferManager.writeDBFile(walFile, /* sync */ true);
+            if (walFile != null){
+                bufferManager.writeDBFile(walFile,true);
+            }
         }
 
-        // For the last WAL file, we only need to write out pages up to the
-        // specified LSN's page number.
+        //对于最后一个WAL文件，我们只刷新到lsn指定记录所在的页
         String walFileName = WALManager.getWALFileName(lsn.getLogFileNo());
         DBFile walFile = bufferManager.getFile(walFileName);
         if (walFile != null) {
             int lastPosition = lsn.getFileOffset() + lsn.getRecordSize();
             int pageNo = lastPosition / walFile.getPageSize();
-            bufferManager.writeDBFile(walFile, 0, pageNo, /* sync */ true);
+            bufferManager.writeDBFile(walFile, 0, pageNo,true);
         }
 
-        // Finally, update the transaction state to record the specified LSN
-        // that was written out. This call also syncs the file; at that point,
-        // the WAL is officially updated.
+        // 最后更新txnState文件的txnStateNextLSN
         txnStateNextLSN = lsn;
         storeTxnStateToFile();
-
-        logger.debug(
-                String.format("WAL was successfully forced to LSN %s " + "(plus %d bytes)", lsn, lsn.getRecordSize()));
+        logger.debug("WAL was successfully forced to LSN %s (plus %d bytes)", lsn, lsn.getRecordSize());
     }
 
     public void forceWAL() throws IOException {
