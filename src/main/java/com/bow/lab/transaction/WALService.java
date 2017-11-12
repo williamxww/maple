@@ -493,23 +493,19 @@ public class WALService implements IWALService {
 
         LOGGER.debug("Writing a " + type + " record for transaction " + transactionID + " at LSN " + lsn);
 
-        // Record the WAL record. First thing to do: figure out where it goes.
-
+        // 开始写内容
         DBFileWriter walWriter = getWALFileWriter(lsn);
-
         walWriter.writeByte(type.getID());
         walWriter.writeInt(transactionID);
-
         if (type == WALRecordType.START_TXN) {
+            // 每个日志rec后面都有type
             walWriter.writeByte(type.getID());
-
             // TypeID (1B) + TransactionID (4B) + TypeID (1B)
             lsn.setRecordSize(6);
         } else {
             walWriter.writeShort(prevLSN.getLogFileNo());
             walWriter.writeInt(prevLSN.getFileOffset());
             walWriter.writeByte(type.getID());
-
             // TypeID (1B) + TransactionID (4B) + PrevLSN (6B) + TypeID (1B)
             lsn.setRecordSize(12);
         }
@@ -530,11 +526,12 @@ public class WALService implements IWALService {
     @Override
     public LogSequenceNumber writeUpdatePageRecord(LogSequenceNumber lsn, DBPage dbPage) throws IOException {
 
-        if (dbPage == null)
+        if (dbPage == null){
             throw new IllegalArgumentException("dbPage must be specified");
-
-        if (!dbPage.isDirty())
+        }
+        if (!dbPage.isDirty()){
             throw new IllegalArgumentException("dbPage has no updates to store");
+        }
 
         // Retrieve and verify the transaction state.
         TransactionState txnState = SessionState.get().getTxnState();
@@ -546,9 +543,7 @@ public class WALService implements IWALService {
                 txnState.getTransactionID(), lsn);
 
         // Record the WAL record. First thing to do: figure out where it goes.
-
         DBFileWriter walWriter = getWALFileWriter(lsn);
-
         walWriter.writeByte(WALRecordType.UPDATE_PAGE.getID());
         walWriter.writeInt(txnState.getTransactionID());
 
