@@ -69,7 +69,7 @@ public class HeapFileTableManager implements TableManager {
      * The table manager uses the storage manager a lot, so it caches a reference
      * to the singleton instance of the storage manager at initialization.
      */
-    private StorageManager storageManager;
+    private StorageManager storageService;
 
 
     /**
@@ -84,15 +84,15 @@ public class HeapFileTableManager implements TableManager {
      * initialized directly, since the storage manager will initialize it when
      * necessary.
      *
-     * @param storageManager the storage manager that is using this table manager
+     * @param storageService the storage manager that is using this table manager
      *
-     * @throws IllegalArgumentException if <tt>storageManager</tt> is <tt>null</tt>
+     * @throws IllegalArgumentException if <tt>storageService</tt> is <tt>null</tt>
      */
-    public HeapFileTableManager(StorageManager storageManager) {
-        if (storageManager == null)
-            throw new IllegalArgumentException("storageManager cannot be null");
+    public HeapFileTableManager(StorageManager storageService) {
+        if (storageService == null)
+            throw new IllegalArgumentException("storageService cannot be null");
 
-        this.storageManager = storageManager;
+        this.storageService = storageService;
     }
 
 
@@ -110,7 +110,7 @@ public class HeapFileTableManager implements TableManager {
 
         // Table schema is stored into the header page, so get it and prepare
         // to write out the schema information.
-        DBPage headerPage = storageManager.loadDBPage(dbFile, 0);
+        DBPage headerPage = storageService.loadDBPage(dbFile, 0);
         PageWriter hpWriter = new PageWriter(headerPage);
         // Skip past the page-size value.
         hpWriter.setPosition(HeaderPage.OFFSET_NCOLS);
@@ -267,7 +267,7 @@ public class HeapFileTableManager implements TableManager {
 
         String tableName = tblFileInfo.getTableName();
         DBFile dbFile = tblFileInfo.getDBFile();
-        DBPage headerPage = storageManager.loadDBPage(dbFile, 0);
+        DBPage headerPage = storageService.loadDBPage(dbFile, 0);
         PageReader hpReader = new PageReader(headerPage);
 
         // Pick up from right after the page size.
@@ -493,7 +493,7 @@ public class HeapFileTableManager implements TableManager {
             for (int iPage = 1; /* nothing */ ; iPage++) {
                 // Look for data on this page...
 
-                DBPage dbPage = storageManager.loadDBPage(dbFile, iPage);
+                DBPage dbPage = storageService.loadDBPage(dbFile, iPage);
                 int numSlots = DataPage.getNumSlots(dbPage);
                 for (int iSlot = 0; iSlot < numSlots; iSlot++) {
                     // Get the offset of the tuple in the page.  If it's 0 then
@@ -536,7 +536,7 @@ public class HeapFileTableManager implements TableManager {
 
         try {
             // This could throw EOFException if the page doesn't actually exist.
-            dbPage = storageManager.loadDBPage(dbFile, fptr.getPageNo());
+            dbPage = storageService.loadDBPage(dbFile, fptr.getPageNo());
         }
         catch (EOFException eofe) {
             throw new InvalidFilePointerException("Specified page " +
@@ -613,7 +613,7 @@ public class HeapFileTableManager implements TableManager {
             // tuple in that page.
 
             try {
-                dbPage = storageManager.loadDBPage(dbFile, dbPage.getPageNo() + 1);
+                dbPage = storageService.loadDBPage(dbFile, dbPage.getPageNo() + 1);
                 nextSlot = 0;
             }
             catch (EOFException e) {
@@ -676,7 +676,7 @@ public class HeapFileTableManager implements TableManager {
         while (true) {
             // Try to load the page without creating a new one.
             try {
-                dbPage = storageManager.loadDBPage(dbFile, pageNo);
+                dbPage = storageService.loadDBPage(dbFile, pageNo);
             }
             catch (EOFException eofe) {
                 // Couldn't load the current page, because it doesn't exist.
@@ -710,7 +710,7 @@ public class HeapFileTableManager implements TableManager {
             // circumstance, pageNo is *just past* the last page in the data
             // file.
             logger.debug("Creating new page " + pageNo + " to store new tuple.");
-            dbPage = storageManager.loadDBPage(dbFile, pageNo, true);
+            dbPage = storageService.loadDBPage(dbFile, pageNo, true);
             DataPage.initNewPage(dbPage);
         }
 
@@ -791,7 +791,7 @@ public class HeapFileTableManager implements TableManager {
         TableStats stats = new TableStats(...);
         tblFileInfo.setStats(stats);
 
-        DBPage headerPage = storageManager.loadDBPage(dbFile, 0);
+        DBPage headerPage = storageService.loadDBPage(dbFile, 0);
         HeaderPage.setTableStats(headerPage, tblFileInfo);
         */
     }

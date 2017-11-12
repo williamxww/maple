@@ -1,13 +1,14 @@
 package com.bow.maple.storage;
 
-
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 
+import com.bow.lab.storage.IStorageService;
 import org.apache.log4j.Logger;
 
-
 /**
+ * DBFileWriter是封装在{@link com.bow.lab.storage.StorageService}之上的,便于WAL连续写操作
+ * TODO 之后还是希望WALService能直接通过StorageService操作文件
  */
 public class DBFileWriter extends DBFileReader {
     
@@ -16,6 +17,11 @@ public class DBFileWriter extends DBFileReader {
 
     public DBFileWriter(DBFile dbFile) {
         super(dbFile);
+        extendFile = true;
+    }
+
+    public DBFileWriter(DBFile dbFile, IStorageService storageService) {
+        super(dbFile, storageService);
         extendFile = true;
     }
 

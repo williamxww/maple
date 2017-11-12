@@ -22,7 +22,7 @@ public class BlockedHeapFileTableReader implements BlockedTableReader {
      * The table reader uses the storage manager a lot, so it caches a reference
      * to the singleton instance of the storage manager at initialization.
      */
-    private StorageManager storageManager;
+    private StorageManager storageService;
 
 
     /**
@@ -31,7 +31,7 @@ public class BlockedHeapFileTableReader implements BlockedTableReader {
      * {@link StorageManager}, since it is used so extensively.
      */
     public BlockedHeapFileTableReader() {
-        this.storageManager = StorageManager.getInstance();
+        this.storageService = StorageManager.getInstance();
     }
 
 

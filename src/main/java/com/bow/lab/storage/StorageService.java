@@ -29,7 +29,7 @@ public class StorageService implements IStorageService {
     }
 
     @Override
-    public DBFile createDBFile(String filename, DBFileType type) throws IOException {
+    public DBFile createDBFile(String filename, DBFileType type, int pageSize) throws IOException {
         if (bufferManager.getFile(filename) != null) {
             throw new IllegalStateException(
                     "A file " + filename + " is already cached in the Buffer Manager!  Does it already exist?");
@@ -54,6 +54,12 @@ public class StorageService implements IStorageService {
             bufferManager.addFile(dbFile);
         }
         return dbFile;
+    }
+
+    @Override
+    public void closeDBFile(DBFile dbFile) throws IOException{
+        bufferManager.removeDBFile(dbFile);
+        fileManager.closeDBFile(dbFile);
     }
 
     /**
@@ -93,5 +99,10 @@ public class StorageService implements IStorageService {
     @Override
     public void unpinDBPage(DBPage dbPage) {
         bufferManager.unpinPage(dbPage);
+    }
+
+    @Override
+    public void flushDBFile(DBFile dbFile) throws IOException{
+        bufferManager.flushDBFile(dbFile);
     }
 }

@@ -34,7 +34,7 @@ public class IndexUpdater implements RowEventListener {
     
     public IndexUpdater(StorageManager storageManager) {
         if (storageManager == null)
-            throw new IllegalArgumentException("storageManager cannot be null");
+            throw new IllegalArgumentException("storageService cannot be null");
 
         this.storageManager = storageManager;
     }

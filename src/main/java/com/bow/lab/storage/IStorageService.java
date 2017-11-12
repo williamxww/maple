@@ -22,7 +22,7 @@ public interface IStorageService {
      * @return 数据文件
      * @throws IOException if the specified file already exists.
      */
-    DBFile createDBFile(String filename, DBFileType type) throws IOException;
+    DBFile createDBFile(String filename, DBFileType type, int pageSize) throws IOException;
 
     /**
      * 打开数据文件
@@ -33,6 +33,7 @@ public interface IStorageService {
      */
     DBFile openDBFile(String filename) throws IOException;
 
+    void closeDBFile(DBFile dbFile) throws IOException;
     /**
      * 加载指定页
      *
@@ -55,4 +56,6 @@ public interface IStorageService {
     DBPage loadDBPage(DBFile dbFile, int pageNo, boolean create) throws IOException;
 
     void unpinDBPage(DBPage dbPage);
+
+    void flushDBFile(DBFile dbFile) throws IOException;
 }

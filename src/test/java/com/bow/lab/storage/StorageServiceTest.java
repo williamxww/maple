@@ -29,7 +29,7 @@ public class StorageServiceTest {
 
     @Test
     public void createDBFile() throws Exception {
-        DBFile dbFile = service.createDBFile("foo", DBFileType.FRM_FILE);
+        DBFile dbFile = service.createDBFile("foo", DBFileType.FRM_FILE, DBFile.DEFAULT_PAGESIZE);
         File file = dbFile.getDataFile();
         System.out.println(file.exists());
     }

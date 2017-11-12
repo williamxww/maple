@@ -208,8 +208,8 @@ xxx.frm
 
 ```
 // 存储整体结构数据
-|    1B  |       1B     |   4B    |
-|FileType|encodePageSize|chemaSize|
+|    1B  |       1B     |   4B     |
+|FileType|encodePageSize|schemaSize|
 // 存储列信息
 |  1B      |  1B  |   1B     |  XB   |  1B  |   1B     |  XB   |...
 |numColumns|TypeID|colNameLen|colName|TypeID|colNameLen|colName|...

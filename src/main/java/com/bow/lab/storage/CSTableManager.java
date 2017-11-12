@@ -32,7 +32,7 @@ public class CSTableManager implements TableManager {
 
     public CSTableManager(StorageManager storageManager) {
         if (storageManager == null){
-            throw new IllegalArgumentException("storageManager cannot be null");
+            throw new IllegalArgumentException("storageService cannot be null");
         }
         this.storageManager = storageManager;
     }
@@ -69,8 +69,8 @@ public class CSTableManager implements TableManager {
         headerPage.writeShort(HeaderPage.OFFSET_SCHEMA_SIZE, schemaSize);
 
         //写WAL
-//        storageManager.logDBPageWrite(headerPage);
-//        storageManager.unpinDBPage(headerPage);
+//        storageService.logDBPageWrite(headerPage);
+//        storageService.unpinDBPage(headerPage);
     }
 
     @Override

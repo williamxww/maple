@@ -64,7 +64,7 @@ public class CreateColStoreCommand extends CreateTableCommand {
 			throw new ExecutionException("There was an error analyzing the data file.");
 		}
 		
-		// Tell storageManager to make colstore table
+		// Tell storageService to make colstore table
 		StorageManager storageManager = StorageManager.getInstance();
 
 		logger.debug("Creating a TableFileInfo object describing the new table " +

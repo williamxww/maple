@@ -121,11 +121,11 @@ public class BTreeIndexManager implements IndexManager {
      *
      * @param storageManager the storage manager that is using this table manager
      *
-     * @throws IllegalArgumentException if <tt>storageManager</tt> is <tt>null</tt>
+     * @throws IllegalArgumentException if <tt>storageService</tt> is <tt>null</tt>
      */
     public BTreeIndexManager(StorageManager storageManager) {
         if (storageManager == null)
-            throw new IllegalArgumentException("storageManager cannot be null");
+            throw new IllegalArgumentException("storageService cannot be null");
 
         this.storageManager = storageManager;
 

@@ -1,6 +1,8 @@
 package com.bow.maple.storage;
 
 
+import com.bow.lab.storage.IStorageService;
+import com.bow.maple.util.ExtensionLoader;
 import org.apache.log4j.Logger;
 
 import java.io.IOException;
@@ -36,7 +38,7 @@ public class DBFileReader {
      * A reference to the storage manager, which we will use to read pages
      * needed for the various operations.
      */
-    StorageManager storageManager;
+    protected IStorageService storageService;
 
 
     /** The database file being read by this reader. */
@@ -71,10 +73,15 @@ public class DBFileReader {
 
 
     public DBFileReader(DBFile dbFile) {
-        if (dbFile == null)
-            throw new IllegalArgumentException("dbFile cannot be null");
+        this(dbFile, ExtensionLoader.getExtensionLoader(IStorageService.class).getExtension());
+    }
 
-        storageManager = StorageManager.getInstance();
+    public DBFileReader( DBFile dbFile, IStorageService storageService){
+        if (dbFile == null){
+            throw new IllegalArgumentException("dbFile cannot be null");
+        }
+
+        this.storageService = storageService;
 
         this.dbFile = dbFile;
         position = 0;
@@ -171,7 +178,7 @@ public class DBFileReader {
             return;
 
         // Need to load the required DBPage.
-        dbPage = storageManager.loadDBPage(dbFile, pageNo, extendFile);
+        dbPage = storageService.loadDBPage(dbFile, pageNo, extendFile);
     }
 
 
