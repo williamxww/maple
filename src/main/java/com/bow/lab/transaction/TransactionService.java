@@ -209,7 +209,7 @@ public class TransactionService implements ITransactionService{
             txnState.setLoggedTxnStart(true);
         }
 
-        this.txnStateNextLSN = walService.writeUpdatePageRecord(this.txnStateNextLSN,dbPage);
+        this.txnStateNextLSN = walService.writeUpdatePageRecord(this.txnStateNextLSN,dbPage, txnState);
         dbPage.syncOldPageData();
     }
 

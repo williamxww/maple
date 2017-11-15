@@ -9,6 +9,7 @@ import com.bow.maple.storage.FileManager;
 import com.bow.maple.storage.heapfile.HeaderPage;
 import com.bow.maple.storage.writeahead.LogSequenceNumber;
 import com.bow.maple.storage.writeahead.WALRecordType;
+import com.bow.maple.transactions.TransactionState;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -64,14 +65,19 @@ public class WALServiceTest {
 
     @Test
     public void writeUpdatePageRecord() throws Exception {
+        int txnId = 5;
         DBFile dbFile = storageService.createDBFile("testData", DBFileType.CS_DATA_FILE, DBFile.DEFAULT_PAGESIZE);
-        DBPage dbPage = storageService.loadDBPage(dbFile,0);
-        dbPage.write(6, new byte[]{0x1F,0x2F,0x3F,0x4F,0x5F});
+        DBPage dbPage = storageService.loadDBPage(dbFile, 0);
+        dbPage.write(6, new byte[] { 0x1F, 0x2F, 0x3F, 0x4F, 0x5F });
 
-        LogSequenceNumber begin = new LogSequenceNumber(0, 12);
-        LogSequenceNumber next =service.writeUpdatePageRecord(begin,dbPage);
-        next = service.writeTxnRecord(next, WALRecordType.COMMIT_TXN, 8, begin);
-        System.out.println(next);
+        LogSequenceNumber prev = new LogSequenceNumber(0, WALService.OFFSET_FIRST_RECORD);
+        LogSequenceNumber begin = prev;
+        TransactionState txnState = new TransactionState();
+        txnState.setTransactionID(txnId);
+        txnState.setLastLSN(prev);
+        LogSequenceNumber next = service.writeUpdatePageRecord(begin, dbPage, txnState);
+        service.writeTxnRecord(next, WALRecordType.COMMIT_TXN, txnId, begin);
+        service.forceWAL(begin, next);
     }
 
 }

@@ -7,6 +7,7 @@ import com.bow.maple.storage.DBPage;
 import com.bow.maple.storage.writeahead.LogSequenceNumber;
 import com.bow.maple.storage.writeahead.RecoveryInfo;
 import com.bow.maple.storage.writeahead.WALRecordType;
+import com.bow.maple.transactions.TransactionState;
 
 /**
  * @author vv
@@ -75,7 +76,7 @@ public interface IWALService {
      * @return 本次记录日志的LogSequenceNumber
      * @throws IOException e
      */
-    LogSequenceNumber writeUpdatePageRecord(LogSequenceNumber next,DBPage dbPage) throws IOException;
+    LogSequenceNumber writeUpdatePageRecord(LogSequenceNumber next,DBPage dbPage, TransactionState txnState) throws IOException;
 
     /**
      * 只写redo log

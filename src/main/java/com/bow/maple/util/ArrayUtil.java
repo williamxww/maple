@@ -1,23 +1,14 @@
 package com.bow.maple.util;
 
 
-/**
- * Some helpful utility operations for working with arrays.
- */
 public class ArrayUtil {
+
     /**
-     * This function reports how many bytes are identical between two arrays,
-     * starting at the specified index.  The arrays are expected to be the same
-     * length.
-     *
-     * @param a the first array to examine
-     *
-     * @param b the second array to examine
-     *
-     * @param index the index to start the comparison at
-     *
-     * @return the number of bytes that are the same, starting from the
-     *         specified index
+     * 从指定位置开始，比较数组a,b，找出相同数据段的大小
+     * @param a 比较的数组
+     * @param b 比较的数组
+     * @param index 从此处开始
+     * @return 相同元素的个数
      */
     public static int sizeOfIdenticalRange(byte[] a, byte[] b, int index) {
         if (a == null)
@@ -42,18 +33,11 @@ public class ArrayUtil {
 
 
     /**
-     * This function reports how many bytes are different between two arrays,
-     * starting at the specified index.  The arrays are expected to be the same
-     * length.
-     *
-     * @param a the first array to examine
-     *
-     * @param b the second array to examine
-     *
-     * @param index the index to start the comparison at
-     *
-     * @return the number of bytes that are different, starting from the
-     *         specified index
+     * 从指定位置开始，比较数组a,b，找出不同数据段的大小
+     * @param a 比较的数组
+     * @param b 比较的数组
+     * @param index 从此处开始
+     * @return 不同元素的个数
      */
     public static int sizeOfDifferentRange(byte[] a, byte[] b, int index) {
         if (a == null)

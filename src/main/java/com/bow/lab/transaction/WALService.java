@@ -464,9 +464,7 @@ public class WALService implements IWALService {
         }
 
         LogSequenceNumber next = writeTxnRecord(lsn, type, txnState.getTransactionID(), txnState.getLastLSN());
-
         txnState.setLastLSN(next);
-
         return next;
     }
 
@@ -517,14 +515,16 @@ public class WALService implements IWALService {
     }
 
     /**
-     * 将dbPage里的新数据写到write-ahead log中，包括undo and redo details.
-     * 
+     * 将dbPage里的新数据写到write-ahead log中，包括undo and redo details.<br/>
+     * 不同数据段，数组a,b中，数组元素不同的一段数据<br/>
+     * 相同数据段，数组a,b中，数组元素相同的一段数据<br/>
+     *
      * @param dbPage 数据页
      * @return 本次记录日志的LogSequenceNumber
      * @throws IOException e
      */
     @Override
-    public LogSequenceNumber writeUpdatePageRecord(LogSequenceNumber lsn, DBPage dbPage) throws IOException {
+    public LogSequenceNumber writeUpdatePageRecord(LogSequenceNumber lsn, DBPage dbPage, TransactionState txnState) throws IOException {
 
         if (dbPage == null){
             throw new IllegalArgumentException("dbPage must be specified");
@@ -532,9 +532,6 @@ public class WALService implements IWALService {
         if (!dbPage.isDirty()){
             throw new IllegalArgumentException("dbPage has no updates to store");
         }
-
-        // Retrieve and verify the transaction state.
-        TransactionState txnState = SessionState.get().getTxnState();
         if (!txnState.isTxnInProgress()) {
             throw new IllegalStateException("No transaction is currently in progress!");
         }
@@ -555,33 +552,13 @@ public class WALService implements IWALService {
         walWriter.writeVarString255(dbPage.getDBFile().getDataFile().getName());
         walWriter.writeShort(dbPage.getPageNo());
 
-        // This offset is where we will store the number of data segments we
-        // need to record.
+        // 存放segment的数量
         int segCountOffset = walWriter.getPosition();
         walWriter.writeShort(-1);
 
         byte[] oldData = dbPage.getOldPageData();
         byte[] newData = dbPage.getPageData();
         int pageSize = dbPage.getPageSize();
-
-        /***
-         * DEBUG: Show the contents of the old and new pages. This is *really*
-         * useful debugging code, so I don't want to throw it away, but I don't
-         * rightly know where or how to enable/disable it. int i = 0; while (i <
-         * pageSize) { boolean same = true; for (int j = 0; j < 32; j++) { if
-         * (oldData[i + j] != newData[i + j]) { same = false; break; } }
-         * 
-         * if (!same) { System.err.printf("%04X OLD: ", i); for (int j = 0; j <
-         * 32; j++) System.err.printf(" %02X", oldData[i + j]);
-         * System.err.println();
-         * 
-         * System.err.printf("%04X NEW: ", i); for (int j = 0; j < 32; j++) { if
-         * (newData[i + j] != oldData[i + j]) System.err.printf(" %02X",
-         * newData[i + j]); else System.err.print(" .."); }
-         * System.err.println(); }
-         * 
-         * i += 32; }
-         */
 
         int numSegments = 0;
         int index = 0;
@@ -591,34 +568,31 @@ public class WALService implements IWALService {
             // Skip data until we find stuff that's different.
             index += ArrayUtil.sizeOfIdenticalRange(oldData, newData, index);
             assert index <= pageSize;
-            if (index == pageSize)
+            if (index == pageSize){
                 break;
-
+            }
             LOGGER.debug("Recording changed bytes starting at index " + index);
 
-            // Find out how much data is actually changed. We lump in small
-            // runs of unchanged data just to make things more efficient.
+            // 找出不同数据的数据段，写到日志中
             int size = 0;
             while (index + size < pageSize) {
                 size += ArrayUtil.sizeOfDifferentRange(oldData, newData, index + size);
                 assert index + size <= pageSize;
-                if (index + size == pageSize)
+                if (index + size == pageSize){
                     break;
+                }
 
-                // If there are 4 or less identical bytes after the different
-                // bytes, include them in this segment.
+                //在不同数据段后，相同数据段的长度>4,此不同段就结束了
                 int sameSize = ArrayUtil.sizeOfIdenticalRange(oldData, newData, index + size);
-
-                if (sameSize > 4 || index + size + sameSize == pageSize)
+                if (sameSize > 4 || index + size + sameSize == pageSize){
                     break;
-
+                }
                 size += sameSize;
             }
 
             LOGGER.debug("Found " + size + " changed bytes starting at index " + index);
 
-            // Write the starting index within the page, and the amount of
-            // data that will be recorded at that index.
+            // 写 不同数据段的起始位置的和大小
             walWriter.writeShort(index);
             walWriter.writeShort(size);
 
@@ -627,33 +601,57 @@ public class WALService implements IWALService {
             walWriter.write(newData, index, size);
 
             numSegments++;
-
             index += size;
         }
         assert index == pageSize;
 
-        // Now that we know how many segments were recorded, store that value
-        // at the appropriate location.
+        // 写段的个数
         int currOffset = walWriter.getPosition();
         walWriter.setPosition(segCountOffset);
         walWriter.writeShort(numSegments);
         walWriter.setPosition(currOffset);
 
-        // Write the start of the update record at the end so that we can get
-        // back to the record's start when scanning the log backwards.
-
+        // 写当前lsn的offset和typeId，方便从后往前查看日志
         walWriter.writeInt(lsn.getFileOffset());
         walWriter.writeByte(WALRecordType.UPDATE_PAGE.getID());
 
         // Store the LSN of the change on the page.
         lsn.setRecordSize(walWriter.getPosition() - lsn.getFileOffset());
         dbPage.setPageLSN(lsn);
-
         txnState.setLastLSN(lsn);
-
         LogSequenceNumber nextLSN = computeNextLSN(lsn.getLogFileNo(), walWriter.getPosition());
-
         return nextLSN;
+    }
+    
+    private void test(int pageSize, int[] newData, int[] oldData) {
+        int i = 0;
+        while (i < pageSize) {
+            boolean same = true;
+            for (int j = 0; j < 32; j++) {
+                if (oldData[i + j] != newData[i + j]) {
+                    same = false;
+                    break;
+                }
+            }
+
+            if (!same) {
+                System.err.printf("%04X OLD: ", i);
+                for (int j = 0; j < 32; j++)
+                    System.err.printf(" %02X", oldData[i + j]);
+                System.err.println();
+
+                System.err.printf("%04X NEW: ", i);
+                for (int j = 0; j < 32; j++) {
+                    if (newData[i + j] != oldData[i + j])
+                        System.err.printf(" %02X", newData[i + j]);
+                    else
+                        System.err.print(" ..");
+                }
+                System.err.println();
+            }
+
+            i += 32;
+        }
     }
 
     /**
@@ -748,45 +746,38 @@ public class WALService implements IWALService {
     public LogSequenceNumber writeRedoOnlyUpdatePageRecord(LogSequenceNumber lsn, int transactionID,
             LogSequenceNumber prevLSN, DBPage dbPage, int numSegments, byte[] changes) throws IOException {
 
-        if (dbPage == null)
+        if (dbPage == null){
             throw new IllegalArgumentException("dbPage must be specified");
-
-        if (changes == null)
+        }
+        if (changes == null){
             throw new IllegalArgumentException("changes must be specified");
+        }
 
         // Record the WAL record. First thing to do: figure out where it goes.
-
         LOGGER.debug("Writing redo-only update record for transaction {} at LSN {}.  PrevLSN = {}", transactionID, lsn,
                 prevLSN);
 
         DBFileWriter walWriter = getWALFileWriter(lsn);
-
         walWriter.writeByte(WALRecordType.UPDATE_PAGE_REDO_ONLY.getID());
         walWriter.writeInt(transactionID);
 
-        // We need to store the previous log sequence number for this record.
+        // write prevLSN
         walWriter.writeShort(prevLSN.getLogFileNo());
         walWriter.writeInt(prevLSN.getFileOffset());
-
+        // 记录修改的数据页
         walWriter.writeVarString255(dbPage.getDBFile().getDataFile().getName());
         walWriter.writeShort(dbPage.getPageNo());
-
         // Write the redo-only data.
         walWriter.writeShort(numSegments);
         walWriter.write(changes);
 
-        // Write the start of the update record at the end so that we can get
-        // back to the record's start when scanning the log backwards.
-
+        // 记录当前lsn的偏移量和typeId
         walWriter.writeInt(lsn.getFileOffset());
         walWriter.writeByte(WALRecordType.UPDATE_PAGE_REDO_ONLY.getID());
-
         // Store the LSN of the change on the page.
         lsn.setRecordSize(walWriter.getPosition() - lsn.getFileOffset());
         dbPage.setPageLSN(lsn);
-
         LogSequenceNumber nextLSN = computeNextLSN(lsn.getLogFileNo(), walWriter.getPosition());
-
         return nextLSN;
     }
 
@@ -802,18 +793,14 @@ public class WALService implements IWALService {
     @Override
     public LogSequenceNumber writeRedoOnlyUpdatePageRecord(LogSequenceNumber lsn, DBPage dbPage, int numSegments,
             byte[] changes) throws IOException {
-
         // Retrieve and verify the transaction state.
         TransactionState txnState = SessionState.get().getTxnState();
         if (!txnState.isTxnInProgress()) {
             throw new IllegalStateException("No transaction is currently in progress!");
         }
-
         LogSequenceNumber next = writeRedoOnlyUpdatePageRecord(lsn, txnState.getTransactionID(), txnState.getLastLSN(),
                 dbPage, numSegments, changes);
-
         txnState.setLastLSN(next);
-
         return next;
     }
 
@@ -850,12 +837,10 @@ public class WALService implements IWALService {
             int prevFileNo = walReader.readUnsignedShort();
             int prevOffset = walReader.readInt();
             LogSequenceNumber prevLSN = new LogSequenceNumber(prevFileNo, prevOffset);
-
             LOGGER.debug("Read PrevLSN of " + prevLSN);
 
             if (type == WALRecordType.UPDATE_PAGE) {
                 // Undo this change.
-
                 // Read the file and page with the changes to undo.
                 String filename = walReader.readVarString255();
                 int pageNo = walReader.readUnsignedShort();
@@ -868,11 +853,9 @@ public class WALService implements IWALService {
                 // undo the writes. While we do this, the data for a redo-only
                 // record is also accumulated.
                 int numSegments = walReader.readUnsignedShort();
-
                 LOGGER.debug(
                         String.format("UPDATE_PAGE record is for file " + "%s, page %d.  Record contains %d segments.",
                                 filename, pageNo, numSegments));
-
                 byte[] redoOnlyData = applyUndoAndGenRedoOnlyData(walReader, dbPage, numSegments);
 
                 LOGGER.debug("Generated " + redoOnlyData.length + " bytes of redo-only data.");
