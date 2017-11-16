@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.bow.lab.storage.BufferService;
+import com.bow.lab.storage.IBufferService;
 import com.bow.lab.storage.IStorageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,7 +27,7 @@ import com.bow.maple.util.PropertiesUtil;
  * FirstLSN,记录起始日志位置，事务恢复时从此处开始<br/>
  * NextLSN,记录下一个日志的位置,下一个事务日志接着此处记录.
  */
-public class TransactionService implements ITransactionService{
+public class TransactionService implements ITransactionService {
     private static Logger logger = LoggerFactory.getLogger(TransactionService.class);
 
     /**
@@ -54,8 +55,6 @@ public class TransactionService implements ITransactionService{
 
     private IStorageService storageService;
 
-    private BufferService bufferManager;
-
     private IWALService walService;
 
     /**
@@ -69,27 +68,24 @@ public class TransactionService implements ITransactionService{
      * 恢复数据的开始位置
      */
     private LogSequenceNumber txnStateFirstLSN;
+
     /**
      * 此LSN对应的记录及其之前的日志记录都已同步到磁盘
      */
     private LogSequenceNumber txnStateNextLSN;
 
-
-    public TransactionService(IStorageService storageService, BufferService bufferManager) {
+    public TransactionService(IStorageService storageService) {
         this.storageService = storageService;
-        this.bufferManager = bufferManager;
         this.nextTxnID = new AtomicInteger();
-        walService = new WALService(storageService, bufferManager);
+        walService = new WALService(storageService);
     }
 
     private TransactionStatePage createTxnStateFile() throws IOException {
-        // Create a brand new transaction-state file for the Transaction Manager
-        // to use.
         // 创建事务文件并写入fileType和pageSize
-        DBFile dbfTxnState = storageService.createDBFile(TXNSTATE_FILENAME, DBFileType.TXNSTATE_FILE, DBFile.DEFAULT_PAGESIZE);
-
-        DBPage dbpTxnState = storageService.loadDBPage(dbfTxnState, 0);
-        TransactionStatePage txnState = new TransactionStatePage(dbpTxnState);
+        DBFile stateFile = storageService.createDBFile(TXNSTATE_FILENAME, DBFileType.TXNSTATE_FILE,
+                DBFile.DEFAULT_PAGESIZE);
+        DBPage statePage = storageService.loadDBPage(stateFile, 0);
+        TransactionStatePage txnState = new TransactionStatePage(statePage);
 
         // Set the "next transaction ID" value to an initial default.
         this.nextTxnID.set(1);
@@ -101,8 +97,7 @@ public class TransactionService implements ITransactionService{
         txnState.setNextLSN(lsn);
         this.txnStateFirstLSN = lsn;
         this.txnStateNextLSN = lsn;
-
-        bufferManager.writeDBFile(dbfTxnState, true);
+        storageService.writeDBFile(stateFile, true);
         return txnState;
     }
 
@@ -129,11 +124,11 @@ public class TransactionService implements ITransactionService{
         txnState.setNextTransactionID(this.nextTxnID.get());
         txnState.setFirstLSN(this.txnStateFirstLSN);
         txnState.setNextLSN(this.txnStateNextLSN);
-        bufferManager.writeDBFile(dbfTxnState, true);
+        storageService.writeDBFile(dbfTxnState, true);
     }
 
     public void initialize() throws IOException {
-        if (!isEnabled()){
+        if (!isEnabled()) {
             throw new IllegalStateException("Transactions are disabled!");
         }
 
@@ -147,7 +142,7 @@ public class TransactionService implements ITransactionService{
             // really should fail initialization, because the old files
             // may have been created without transaction processing...
 
-            logger.info("Couldn't find transaction-state file {}, creating.",TXNSTATE_FILENAME);
+            logger.info("Couldn't find transaction-state file {}, creating.", TXNSTATE_FILENAME);
             txnState = createTxnStateFile();
         }
 
@@ -163,7 +158,8 @@ public class TransactionService implements ITransactionService{
         storeTxnStateToFile();
 
         // Register the component that manages indexes when tables are modified.
-//        EventDispatcher.getInstance().addCommandEventListener(new TransactionStateUpdater(this, bufferManager));
+        // EventDispatcher.getInstance().addCommandEventListener(new
+        // TransactionStateUpdater(this, bufferManager));
     }
 
     @Override
@@ -173,6 +169,7 @@ public class TransactionService implements ITransactionService{
 
     /**
      * 开始事务，只需要在SessionState设置初始变量即可。
+     * 
      * @param userStarted 是用户指定开启，还是程序自动开启
      * @throws TransactionException 事务异常
      */
@@ -205,11 +202,11 @@ public class TransactionService implements ITransactionService{
 
         TransactionState txnState = SessionState.get().getTxnState();
         if (!txnState.hasLoggedTxnStart()) {
-            this.txnStateNextLSN = walService.writeTxnRecord(this.txnStateNextLSN,WALRecordType.START_TXN);
+            this.txnStateNextLSN = walService.writeTxnRecord(this.txnStateNextLSN, WALRecordType.START_TXN);
             txnState.setLoggedTxnStart(true);
         }
 
-        this.txnStateNextLSN = walService.writeUpdatePageRecord(this.txnStateNextLSN,dbPage, txnState);
+        this.txnStateNextLSN = walService.writeUpdatePageRecord(this.txnStateNextLSN, dbPage, txnState);
         dbPage.syncOldPageData();
     }
 
@@ -232,7 +229,7 @@ public class TransactionService implements ITransactionService{
             // Must record the transaction as committed to the write-ahead log.
             // Then, we must force the WAL to include this commit record.
             try {
-                this.txnStateNextLSN = walService.writeTxnRecord(this.txnStateNextLSN,WALRecordType.COMMIT_TXN);
+                this.txnStateNextLSN = walService.writeTxnRecord(this.txnStateNextLSN, WALRecordType.COMMIT_TXN);
                 // 强制WAL落盘
                 forceWAL(this.txnStateNextLSN);
             } catch (IOException e) {
@@ -263,13 +260,12 @@ public class TransactionService implements ITransactionService{
 
         if (txnState.hasLoggedTxnStart()) {
             try {
-                walService.rollbackTransaction(this.txnStateNextLSN,txnID, txnState.getLastLSN());
+                walService.rollbackTransaction(this.txnStateNextLSN, txnID, txnState.getLastLSN());
             } catch (IOException e) {
                 throw new TransactionException("Couldn't rollback transaction " + txnID + "!", e);
             }
         } else {
-            logger.debug(
-                    "Transaction {} has made no changes; not recording transaction-rollback to WAL.", txnID);
+            logger.debug("Transaction {} has made no changes; not recording transaction-rollback to WAL.", txnID);
         }
 
         // Now that the transaction is successfully rolled back, clear the
@@ -277,8 +273,6 @@ public class TransactionService implements ITransactionService{
         logger.debug("Transaction completed, resetting transaction state.");
         txnState.clear();
     }
-
-
 
     /**
      * 强制将到lsn为止的所有WAL落盘。

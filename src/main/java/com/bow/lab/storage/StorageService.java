@@ -20,10 +20,11 @@ public class StorageService implements IStorageService {
 
     /**
      * 传入fileManager和bufferManager构造一个StorageService实例
+     * 
      * @param fileManager 文件管理器
      * @param bufferManager 缓存管理器
      */
-    public StorageService(FileManager fileManager, BufferService bufferManager){
+    public StorageService(FileManager fileManager, BufferService bufferManager) {
         this.bufferManager = bufferManager;
         this.fileManager = fileManager;
     }
@@ -57,7 +58,12 @@ public class StorageService implements IStorageService {
     }
 
     @Override
-    public void closeDBFile(DBFile dbFile) throws IOException{
+    public DBFile getFile(String filename) {
+        return bufferManager.getFile(filename);
+    }
+
+    @Override
+    public void closeDBFile(DBFile dbFile) throws IOException {
         bufferManager.removeDBFile(dbFile);
         fileManager.closeDBFile(dbFile);
     }
@@ -102,7 +108,22 @@ public class StorageService implements IStorageService {
     }
 
     @Override
-    public void flushDBFile(DBFile dbFile) throws IOException{
+    public void flushDBFile(DBFile dbFile) throws IOException {
         bufferManager.flushDBFile(dbFile);
+    }
+
+    @Override
+    public void writeDBFile(DBFile dbFile, int minPageNo, int maxPageNo, boolean sync) throws IOException {
+        bufferManager.writeDBFile(dbFile, minPageNo, maxPageNo, sync);
+    }
+
+    @Override
+    public void writeDBFile(DBFile dbFile, boolean sync) throws IOException {
+        bufferManager.writeDBFile(dbFile, sync);
+    }
+
+    @Override
+    public void writeAll(boolean sync) throws IOException {
+        bufferManager.writeAll(sync);
     }
 }

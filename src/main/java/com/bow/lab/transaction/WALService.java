@@ -56,11 +56,8 @@ public class WALService implements IWALService {
 
     private IStorageService storageService;
 
-    private BufferService bufferManager;
-
-    public WALService(IStorageService storageService, BufferService bufferManager) {
+    public WALService(IStorageService storageService) {
         this.storageService = storageService;
-        this.bufferManager = bufferManager;
     }
 
     /**
@@ -131,7 +128,7 @@ public class WALService implements IWALService {
         performUndo(next, recoveryInfo);
 
         // data pages, and sync all of the affected files.
-        bufferManager.writeAll(true);
+        storageService.writeAll(true);
 
         // FIXME 此处应该返回写完undo后的日志
         return next;
@@ -891,19 +888,19 @@ public class WALService implements IWALService {
         // 将缓存中所有的WAL日志文件落盘
         for (int fileNo = start.getLogFileNo(); fileNo < end.getLogFileNo(); fileNo++) {
             String walFileName = WALManager.getWALFileName(fileNo);
-            DBFile walFile = bufferManager.getFile(walFileName);
+            DBFile walFile = storageService.getFile(walFileName);
             if (walFile != null) {
-                bufferManager.writeDBFile(walFile, true);
+                storageService.writeDBFile(walFile, true);
             }
         }
 
         // 对于最后一个WAL文件，我们只刷新到lsn指定记录所在的页
         String walFileName = WALManager.getWALFileName(end.getLogFileNo());
-        DBFile walFile = bufferManager.getFile(walFileName);
+        DBFile walFile = storageService.getFile(walFileName);
         if (walFile != null) {
             int lastPosition = end.getFileOffset() + end.getRecordSize();
             int pageNo = lastPosition / walFile.getPageSize();
-            bufferManager.writeDBFile(walFile, 0, pageNo, true);
+            storageService.writeDBFile(walFile, 0, pageNo, true);
         }
 
         LOGGER.debug("WAL was successfully forced to LSN {} (plus {} bytes)", end, end.getRecordSize());

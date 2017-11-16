@@ -3,6 +3,7 @@ package com.bow.lab.storage;
 import com.bow.maple.storage.DBFile;
 import com.bow.maple.storage.DBFileType;
 import com.bow.maple.storage.DBPage;
+import com.bow.maple.storage.FileManager;
 
 import java.io.IOException;
 
@@ -33,7 +34,17 @@ public interface IStorageService {
      */
     DBFile openDBFile(String filename) throws IOException;
 
+    /**
+     * 从缓存中取出DBFile，尽量和openDBFile合并
+     *
+     * @param filename 文件名
+     * @return DBFile
+     */
+    @Deprecated
+    DBFile getFile(String filename);
+
     void closeDBFile(DBFile dbFile) throws IOException;
+
     /**
      * 加载指定页
      *
@@ -58,4 +69,32 @@ public interface IStorageService {
     void unpinDBPage(DBPage dbPage);
 
     void flushDBFile(DBFile dbFile) throws IOException;
+
+    /**
+     * 将dbFile中指定范围内的脏数据页刷出到磁盘
+     *
+     * @param dbFile 指定文件
+     * @param minPageNo 指定页范围
+     * @param maxPageNo 指定页范围
+     * @param sync 同步到磁盘{@link FileManager#syncDBFile(DBFile)}
+     * @throws IOException 文件操作异常
+     */
+    void writeDBFile(DBFile dbFile, int minPageNo, int maxPageNo, boolean sync) throws IOException;
+
+    /**
+     * dbFile中所有脏页刷出到磁盘
+     *
+     * @param dbFile 数据文件
+     * @param sync 同步
+     * @throws IOException 文件操作异常
+     */
+    void writeDBFile(DBFile dbFile, boolean sync) throws IOException;
+
+    /**
+     * 将所有的缓存页刷出到磁盘
+     *
+     * @param sync 同步到磁盘
+     * @throws IOException 文件异常
+     */
+    void writeAll(boolean sync) throws IOException;
 }

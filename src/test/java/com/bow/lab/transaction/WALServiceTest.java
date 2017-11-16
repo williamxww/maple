@@ -33,7 +33,7 @@ public class WALServiceTest {
         FileManager fileManager = new FileManager(dir);
         BufferService bufferService = new BufferService(fileManager);
         storageService = new StorageService(fileManager, bufferService);
-        service = new WALService(storageService, bufferService);
+        service = new WALService(storageService);
     }
 
     @Test
