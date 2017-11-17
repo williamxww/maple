@@ -15,16 +15,12 @@ import com.bow.maple.transactions.TransactionState;
  */
 public class SessionState {
 
-    /*========================================================================
-     * STATIC FIELDS AND METHODS
-     */
-
 
     /**
      * This static variable holds the next session ID to assign to a client
      * session.  It must be accessed in a synchronized manner.
      */
-    static private AtomicInteger nextSessionID = new AtomicInteger(1);
+     private static AtomicInteger nextSessionID = new AtomicInteger(1);
 
     
     private static ThreadLocal<SessionState> threadLocalState =
@@ -101,8 +97,7 @@ public class SessionState {
     public PrintStream getOutputStream() {
         return outputStream;
     }
-    
-    
+
     public void setOutputStream(PrintStream out) {
         if (out == null)
             throw new IllegalArgumentException("out cannot be null");

@@ -11,6 +11,7 @@ import java.io.IOException;
  */
 public interface ITransactionService {
 
+    void initialize()  throws IOException;
     /**
      * 增加transaction id
      * @return transaction id

@@ -13,7 +13,7 @@ import com.bow.maple.storage.writeahead.LogSequenceNumber;
  * <pre>    TransactionState txnState = SessionState.get().getTxnState()</pre>
  * <p>
  * <b>The transaction state should generally <u>not</u> be managed directly!</b>
- * Rather, the operations provided by the {@link TransactionManager} should be
+ * Rather, the operations provided by the {@link com.bow.lab.transaction.TransactionService} should be
  * used.
  * </p>
  */
@@ -30,11 +30,8 @@ public class TransactionState {
 
     private boolean performedWrites = false;
 
-
     /**
-     * This value indicates whether the current transaction has been logged
-     * to the write-ahead log yet.  We don't write the "T<sub>i</sub>:  start"
-     * record until the transaction performs its first write operation.
+     * 当前事务是否已开始记录WAL日志
      */
     private boolean loggedTxnStart = false;
 

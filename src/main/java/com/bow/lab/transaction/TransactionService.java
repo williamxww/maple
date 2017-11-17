@@ -80,6 +80,35 @@ public class TransactionService implements ITransactionService {
         walService = new WALService(storageService);
     }
 
+    @Override
+    public void initialize() throws IOException {
+        if (!isEnabled()) {
+            throw new IllegalStateException("Transactions are disabled!");
+        }
+
+        TransactionStatePage txnState;
+        try {
+            txnState = loadTxnStateFile();
+        } catch (FileNotFoundException e) {
+            logger.info("Couldn't find transaction-state file {}, creating.", TXNSTATE_FILENAME);
+            txnState = createTxnStateFile();
+        }
+
+        // Perform recovery
+        LogSequenceNumber start = txnState.getFirstLSN();
+        LogSequenceNumber end = txnState.getNextLSN();
+        logger.debug("Txn State has FirstLSN = {}, NextLSN = {}", start, end);
+        RecoveryInfo recoveryInfo = new RecoveryInfo(start, end);
+        this.txnStateNextLSN = walService.doRecovery(this.txnStateNextLSN, recoveryInfo);
+
+        // 存储到文件
+        storeTxnStateToFile();
+
+        // Register the component that manages indexes when tables are modified.
+        // EventDispatcher.getInstance().addCommandEventListener(new
+        // TransactionStateUpdater(this, bufferManager));
+    }
+
     private TransactionStatePage createTxnStateFile() throws IOException {
         // 创建事务文件并写入fileType和pageSize
         DBFile stateFile = storageService.createDBFile(TXNSTATE_FILENAME, DBFileType.TXNSTATE_FILE,
@@ -127,40 +156,7 @@ public class TransactionService implements ITransactionService {
         storageService.writeDBFile(dbfTxnState, true);
     }
 
-    public void initialize() throws IOException {
-        if (!isEnabled()) {
-            throw new IllegalStateException("Transactions are disabled!");
-        }
 
-        // Read the transaction-state file so we can initialize the
-        // Transaction Manager.
-        TransactionStatePage txnState;
-        try {
-            txnState = loadTxnStateFile();
-        } catch (FileNotFoundException e) {
-            // BUGBUG: If we find any other files in the data directory, we
-            // really should fail initialization, because the old files
-            // may have been created without transaction processing...
-
-            logger.info("Couldn't find transaction-state file {}, creating.", TXNSTATE_FILENAME);
-            txnState = createTxnStateFile();
-        }
-
-        // Perform recovery
-        LogSequenceNumber start = txnState.getFirstLSN();
-        LogSequenceNumber end = txnState.getNextLSN();
-        logger.debug("Txn State has FirstLSN = {}, NextLSN = {}", start, end);
-
-        RecoveryInfo recoveryInfo = new RecoveryInfo(start, end);
-        this.txnStateNextLSN = walService.doRecovery(this.txnStateNextLSN, recoveryInfo);
-
-        // Update and sync the transaction state if any changes were made.
-        storeTxnStateToFile();
-
-        // Register the component that manages indexes when tables are modified.
-        // EventDispatcher.getInstance().addCommandEventListener(new
-        // TransactionStateUpdater(this, bufferManager));
-    }
 
     @Override
     public int getAndIncrementNextTxnID() {
@@ -178,17 +174,15 @@ public class TransactionService implements ITransactionService {
         SessionState state = SessionState.get();
         TransactionState txnState = state.getTxnState();
 
-        if (txnState.isTxnInProgress())
+        if (txnState.isTxnInProgress()) {
             throw new IllegalStateException("A transaction is already in progress!");
+        }
 
         int txnID = getAndIncrementNextTxnID();
         txnState.setTransactionID(txnID);
         txnState.setUserStartedTxn(userStarted);
-
         logger.debug("Starting transaction with ID " + txnID + (userStarted ? " (user-started)" : ""));
-
-        // Don't record a "start transaction" WAL record until the transaction
-        // actually writes to something in the database.
+        // 当用户真正改了数据页，再真正记录事务启动日志
     }
 
     @Override
@@ -197,38 +191,32 @@ public class TransactionService implements ITransactionService {
             logger.debug("Page reports it is not dirty; not logging update.");
             return;
         }
-
         logger.debug("Recording page-update for page " + dbPage.getPageNo() + " of file " + dbPage.getDBFile());
 
+        // 开启一个事务
         TransactionState txnState = SessionState.get().getTxnState();
         if (!txnState.hasLoggedTxnStart()) {
             this.txnStateNextLSN = walService.writeTxnRecord(this.txnStateNextLSN, WALRecordType.START_TXN);
             txnState.setLoggedTxnStart(true);
         }
-
         this.txnStateNextLSN = walService.writeUpdatePageRecord(this.txnStateNextLSN, dbPage, txnState);
         dbPage.syncOldPageData();
     }
 
     @Override
     public void commitTransaction() throws TransactionException {
-        SessionState state = SessionState.get();
-        TransactionState txnState = state.getTxnState();
+        SessionState sessionState = SessionState.get();
+        TransactionState txnState = sessionState.getTxnState();
 
         if (!txnState.isTxnInProgress()) {
-            // The user issued a COMMIT without starting a transaction!
-
-            state.getOutputStream().println("No transaction is currently in progress.");
-
+            sessionState.getOutputStream().println("No transaction is currently in progress.");
             return;
         }
 
         int txnID = txnState.getTransactionID();
-
         if (txnState.hasLoggedTxnStart()) {
-            // Must record the transaction as committed to the write-ahead log.
-            // Then, we must force the WAL to include this commit record.
             try {
+                // 写提交日志
                 this.txnStateNextLSN = walService.writeTxnRecord(this.txnStateNextLSN, WALRecordType.COMMIT_TXN);
                 // 强制WAL落盘
                 forceWAL(this.txnStateNextLSN);
@@ -240,8 +228,7 @@ public class TransactionService implements ITransactionService {
                     "Transaction " + txnID + " has made no changes; not " + "recording transaction-commit to WAL.");
         }
 
-        // Now that the transaction is successfully committed, clear the current
-        // transaction state.
+        // 清理txnState
         logger.debug("Transaction completed, resetting transaction state.");
         txnState.clear();
     }
@@ -257,7 +244,6 @@ public class TransactionService implements ITransactionService {
         }
 
         int txnID = txnState.getTransactionID();
-
         if (txnState.hasLoggedTxnStart()) {
             try {
                 walService.rollbackTransaction(this.txnStateNextLSN, txnID, txnState.getLastLSN());
@@ -268,8 +254,7 @@ public class TransactionService implements ITransactionService {
             logger.debug("Transaction {} has made no changes; not recording transaction-rollback to WAL.", txnID);
         }
 
-        // Now that the transaction is successfully rolled back, clear the
-        // current transaction state.
+        // 清理txnState
         logger.debug("Transaction completed, resetting transaction state.");
         txnState.clear();
     }
