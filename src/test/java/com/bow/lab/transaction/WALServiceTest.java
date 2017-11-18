@@ -6,7 +6,6 @@ import com.bow.maple.storage.DBFile;
 import com.bow.maple.storage.DBFileType;
 import com.bow.maple.storage.DBPage;
 import com.bow.maple.storage.FileManager;
-import com.bow.maple.storage.heapfile.HeaderPage;
 import com.bow.maple.storage.writeahead.LogSequenceNumber;
 import com.bow.maple.storage.writeahead.WALRecordType;
 import com.bow.maple.transactions.TransactionState;
@@ -14,8 +13,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
-
-import static org.junit.Assert.*;
 
 /**
  * @author vv
@@ -75,7 +72,7 @@ public class WALServiceTest {
         TransactionState txnState = new TransactionState();
         txnState.setTransactionID(txnId);
         txnState.setLastLSN(prev);
-        LogSequenceNumber next = service.writeUpdatePageRecord(begin, dbPage, txnState);
+        LogSequenceNumber next = service.writeUpdateRecord(begin, dbPage, txnState);
         service.writeTxnRecord(next, WALRecordType.COMMIT_TXN, txnId, begin);
         service.forceWAL(begin, next);
     }

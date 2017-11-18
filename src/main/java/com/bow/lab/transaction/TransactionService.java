@@ -4,8 +4,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.bow.lab.storage.BufferService;
-import com.bow.lab.storage.IBufferService;
 import com.bow.lab.storage.IStorageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,8 +22,15 @@ import com.bow.maple.util.PropertiesUtil;
 
 /**
  *
- * FirstLSN,记录起始日志位置，事务恢复时从此处开始<br/>
- * NextLSN,记录下一个日志的位置,下一个事务日志接着此处记录.
+ * txnstate.dat
+ * 
+ * <pre>
+ *     |    1B  |       1B     |   4B      |      2B      |      4B      |      2B     |      4B     |
+ *     |FileType|encodePageSize|NEXT_TXN_ID|firstLSNFileNo|firstLSNOffset|nextLSNFileNo|nextLSNOffset|
+ * </pre>
+ * 
+ * FirstLSN,起始日志位置，事务恢复时从此处开始<br/>
+ * NextLSN,下一个日志的位置,下一个事务日志接着此处记录.
  */
 public class TransactionService implements ITransactionService {
     private static Logger logger = LoggerFactory.getLogger(TransactionService.class);
@@ -58,26 +63,29 @@ public class TransactionService implements ITransactionService {
     private IWALService walService;
 
     /**
-     * This variable keeps track of the next transaction ID that should be used
-     * for a transaction. It is initialized when the transaction manager is
-     * started.
+     * 下次事务的ID
      */
     private AtomicInteger nextTxnID;
 
     /**
-     * 恢复数据的开始位置
+     * txnStat文件中的firstLsn
      */
-    private LogSequenceNumber txnStateFirstLSN;
+    private LogSequenceNumber firstLsnInFile;
 
     /**
-     * 此LSN对应的记录及其之前的日志记录都已同步到磁盘
+     * txnStat文件中的nextLsn
      */
-    private LogSequenceNumber txnStateNextLSN;
+    private LogSequenceNumber nextLsnInFile;
+
+    /**
+     * 下次写的位置
+     */
+    private LogSequenceNumber nextLsn;
 
     public TransactionService(IStorageService storageService) {
         this.storageService = storageService;
         this.nextTxnID = new AtomicInteger();
-        walService = new WALService(storageService);
+        this.walService = new WALService(storageService);
     }
 
     @Override
@@ -99,7 +107,7 @@ public class TransactionService implements ITransactionService {
         LogSequenceNumber end = txnState.getNextLSN();
         logger.debug("Txn State has FirstLSN = {}, NextLSN = {}", start, end);
         RecoveryInfo recoveryInfo = new RecoveryInfo(start, end);
-        this.txnStateNextLSN = walService.doRecovery(this.txnStateNextLSN, recoveryInfo);
+        this.nextLsnInFile = walService.doRecovery(this.nextLsnInFile, recoveryInfo);
 
         // 存储到文件
         storeTxnStateToFile();
@@ -124,39 +132,39 @@ public class TransactionService implements ITransactionService {
         LogSequenceNumber lsn = new LogSequenceNumber(0, WALService.OFFSET_FIRST_RECORD);
         txnState.setFirstLSN(lsn);
         txnState.setNextLSN(lsn);
-        this.txnStateFirstLSN = lsn;
-        this.txnStateNextLSN = lsn;
+        this.firstLsnInFile = lsn;
+        this.nextLsnInFile = lsn;
+        this.nextLsn = lsn;
         storageService.writeDBFile(stateFile, true);
         return txnState;
     }
 
     private TransactionStatePage loadTxnStateFile() throws IOException {
-        DBFile dbfTxnState = storageService.openDBFile(TXNSTATE_FILENAME);
-        DBPage dbpTxnState = storageService.loadDBPage(dbfTxnState, 0);
-        TransactionStatePage txnState = new TransactionStatePage(dbpTxnState);
+        DBFile dbFile = storageService.openDBFile(TXNSTATE_FILENAME);
+        DBPage dbPage = storageService.loadDBPage(dbFile, 0);
+        TransactionStatePage txnState = new TransactionStatePage(dbPage);
 
         // Set the "next transaction ID" value properly.
         this.nextTxnID.set(txnState.getNextTransactionID());
 
         // Retrieve the "first LSN" and "next LSN values so we know the range of
         // the write-ahead log that we need to apply for recovery.
-        this.txnStateNextLSN = txnState.getNextLSN();
-        this.txnStateFirstLSN = txnState.getFirstLSN();
+        this.nextLsnInFile = txnState.getNextLSN();
+        this.firstLsnInFile = txnState.getFirstLSN();
+        this.nextLsn = nextLsnInFile;
         return txnState;
     }
 
     private void storeTxnStateToFile() throws IOException {
-        DBFile dbfTxnState = storageService.openDBFile(TXNSTATE_FILENAME);
-        DBPage dbpTxnState = storageService.loadDBPage(dbfTxnState, 0);
-        TransactionStatePage txnState = new TransactionStatePage(dbpTxnState);
+        DBFile dbFile = storageService.openDBFile(TXNSTATE_FILENAME);
+        DBPage dbPage = storageService.loadDBPage(dbFile, 0);
+        TransactionStatePage txnState = new TransactionStatePage(dbPage);
 
         txnState.setNextTransactionID(this.nextTxnID.get());
-        txnState.setFirstLSN(this.txnStateFirstLSN);
-        txnState.setNextLSN(this.txnStateNextLSN);
-        storageService.writeDBFile(dbfTxnState, true);
+        txnState.setFirstLSN(this.firstLsnInFile);
+        txnState.setNextLSN(this.nextLsnInFile);
+        storageService.writeDBFile(dbFile, true);
     }
-
-
 
     @Override
     public int getAndIncrementNextTxnID() {
@@ -196,10 +204,10 @@ public class TransactionService implements ITransactionService {
         // 开启一个事务
         TransactionState txnState = SessionState.get().getTxnState();
         if (!txnState.hasLoggedTxnStart()) {
-            this.txnStateNextLSN = walService.writeTxnRecord(this.txnStateNextLSN, WALRecordType.START_TXN);
+            this.nextLsn = walService.writeTxnRecord(this.nextLsn, WALRecordType.START_TXN);
             txnState.setLoggedTxnStart(true);
         }
-        this.txnStateNextLSN = walService.writeUpdatePageRecord(this.txnStateNextLSN, dbPage, txnState);
+        this.nextLsn = walService.writeUpdateRecord(this.nextLsn, dbPage, txnState);
         dbPage.syncOldPageData();
     }
 
@@ -217,9 +225,9 @@ public class TransactionService implements ITransactionService {
         if (txnState.hasLoggedTxnStart()) {
             try {
                 // 写提交日志
-                this.txnStateNextLSN = walService.writeTxnRecord(this.txnStateNextLSN, WALRecordType.COMMIT_TXN);
+                this.nextLsn = walService.writeTxnRecord(this.nextLsn, WALRecordType.COMMIT_TXN);
                 // 强制WAL落盘
-                forceWAL(this.txnStateNextLSN);
+                forceWAL(this.nextLsn);
             } catch (IOException e) {
                 throw new TransactionException("Couldn't commit transaction " + txnID + "!", e);
             }
@@ -246,7 +254,7 @@ public class TransactionService implements ITransactionService {
         int txnID = txnState.getTransactionID();
         if (txnState.hasLoggedTxnStart()) {
             try {
-                walService.rollbackTransaction(this.txnStateNextLSN, txnID, txnState.getLastLSN());
+                walService.rollbackTransaction(this.nextLsnInFile, txnID, txnState.getLastLSN());
             } catch (IOException e) {
                 throw new TransactionException("Couldn't rollback transaction " + txnID + "!", e);
             }
@@ -267,7 +275,7 @@ public class TransactionService implements ITransactionService {
      * @throws IOException 此处失败了，有可能导致数据库出问题
      */
     public void forceWAL(LogSequenceNumber lsn) throws IOException {
-        this.txnStateNextLSN = walService.forceWAL(txnStateNextLSN, lsn);
+        this.nextLsnInFile = walService.forceWAL(nextLsnInFile, lsn);
 
         // 最后更新txnState文件的txnStateNextLSN
         storeTxnStateToFile();
@@ -275,6 +283,6 @@ public class TransactionService implements ITransactionService {
     }
 
     public void forceWAL() throws IOException {
-        forceWAL(this.txnStateNextLSN);
+        forceWAL(this.nextLsn);
     }
 }

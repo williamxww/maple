@@ -11,31 +11,31 @@ public enum WALRecordType {
      * The record represents a "&lt;<i>T<sub>i</sub></i>:  start
      * transaction&gt;" record.
      */
-    START_TXN(1),
+    START_TXN(0xF1),
 
     /**
      * The record represents a "&lt;<i>T<sub>i</sub></i>:  update <i>P</i>
      * &rarr; <i>P'</i> &gt;" record.
      */
-    UPDATE_PAGE(2),
+    UPDATE_PAGE(0xF2),
 
     /**
      * The record represents a "&lt;<i>T<sub>i</sub></i>:  update <i>P'</i>
      * (redo only)&gt;" record.
      */
-    UPDATE_PAGE_REDO_ONLY(3),
+    UPDATE_PAGE_REDO_ONLY(0xF3),
 
     /**
      * The record represents a "&lt;<i>T<sub>i</sub></i>:  commit
      * transaction&gt;" record.
      */
-    COMMIT_TXN(10),
+    COMMIT_TXN(0xFC),
 
     /**
      * The record represents a "&lt;<i>T<sub>i</sub></i>:  abort
      * transaction&gt;" record.
      */
-    ABORT_TXN(11);
+    ABORT_TXN(0xFA);
 
 
     private int id;

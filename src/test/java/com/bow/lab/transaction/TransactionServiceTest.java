@@ -1,14 +1,7 @@
 package com.bow.lab.transaction;
 
-import com.bow.lab.storage.BufferService;
-import com.bow.lab.storage.StorageService;
-import com.bow.maple.storage.FileManager;
 import org.junit.Before;
 import org.junit.Test;
-
-import java.io.File;
-
-import static org.junit.Assert.*;
 
 /**
  * @author vv
@@ -33,12 +26,10 @@ public class TransactionServiceTest extends AbstractTest{
         service.commitTransaction();
     }
 
-    @Test
-    public void commitTransaction() throws Exception {
-    }
 
     @Test
     public void rollbackTransaction() throws Exception {
+        service.rollbackTransaction();
     }
 
 }

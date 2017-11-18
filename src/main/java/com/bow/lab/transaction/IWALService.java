@@ -76,7 +76,7 @@ public interface IWALService {
      * @return 本次记录日志的LogSequenceNumber
      * @throws IOException e
      */
-    LogSequenceNumber writeUpdatePageRecord(LogSequenceNumber next,DBPage dbPage, TransactionState txnState) throws IOException;
+    LogSequenceNumber writeUpdateRecord(LogSequenceNumber next, DBPage dbPage, TransactionState txnState) throws IOException;
 
     /**
      * 只写redo log
@@ -98,8 +98,8 @@ public interface IWALService {
      * @return 当前记录日志的LSN
      * @throws IOException e
      */
-    LogSequenceNumber writeRedoOnlyUpdatePageRecord(LogSequenceNumber next, int transactionID, LogSequenceNumber prevLSN, DBPage dbPage,
-            int numSegments, byte[] changes) throws IOException;
+    LogSequenceNumber writeRedoRecord(LogSequenceNumber next, int transactionID, LogSequenceNumber prevLSN, DBPage dbPage,
+                                      int numSegments, byte[] changes) throws IOException;
 
     /**
      * 将变化数据changes写到dbPage上
@@ -110,7 +110,7 @@ public interface IWALService {
      * @return 当前记录日志的LSN
      * @throws IOException e
      */
-    LogSequenceNumber writeRedoOnlyUpdatePageRecord(LogSequenceNumber next,DBPage dbPage, int numSegments, byte[] changes) throws IOException;
+    LogSequenceNumber writeRedoRecord(LogSequenceNumber next, DBPage dbPage, int numSegments, byte[] changes) throws IOException;
 
     void rollbackTransaction(LogSequenceNumber next,int transactionID, LogSequenceNumber lsn) throws IOException;
 

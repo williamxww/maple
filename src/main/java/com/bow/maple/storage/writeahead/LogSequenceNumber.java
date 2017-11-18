@@ -105,6 +105,13 @@ public class LogSequenceNumber
         return fileOffset;
     }
 
+    public void setLogFileNo(int logFileNo) {
+        this.logFileNo = logFileNo;
+    }
+
+    public void setFileOffset(int fileOffset) {
+        this.fileOffset = fileOffset;
+    }
 
     public void setRecordSize(int size) {
         recordSize = size;
