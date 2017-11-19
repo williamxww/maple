@@ -1,6 +1,8 @@
 package com.bow.lab.transaction;
 
 import com.bow.lab.storage.BufferService;
+import com.bow.lab.storage.FileService;
+import com.bow.lab.storage.IFileService;
 import com.bow.lab.storage.StorageService;
 import com.bow.maple.storage.DBFile;
 import com.bow.maple.storage.DBFileType;
@@ -27,7 +29,7 @@ public class WALServiceTest {
     @Before
     public void setup() {
         File dir = new File("test");
-        FileManager fileManager = new FileManager(dir);
+        IFileService fileManager = new FileService(dir);
         BufferService bufferService = new BufferService(fileManager);
         storageService = new StorageService(fileManager, bufferService);
         service = new WALService(storageService);

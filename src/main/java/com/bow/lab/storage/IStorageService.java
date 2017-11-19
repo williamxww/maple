@@ -68,6 +68,11 @@ public interface IStorageService {
 
     void unpinDBPage(DBPage dbPage);
 
+    /**
+     * 将文件刷出到磁盘，并从内存中移除
+     * @param dbFile 文件
+     * @throws IOException e
+     */
     void flushDBFile(DBFile dbFile) throws IOException;
 
     /**

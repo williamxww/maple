@@ -3,8 +3,8 @@ package com.bow.lab.storage;
 import com.bow.maple.storage.DBFile;
 import com.bow.maple.storage.DBFileType;
 import com.bow.maple.storage.DBPage;
-import com.bow.maple.storage.FileManager;
 import com.bow.maple.storage.StorageManager;
+import com.bow.maple.util.ExtensionLoader;
 
 import java.io.IOException;
 
@@ -14,29 +14,37 @@ import java.io.IOException;
  */
 public class StorageService implements IStorageService {
 
-    private BufferService bufferManager;
+    private IBufferService bufferService;
 
-    private FileManager fileManager;
+    private IFileService fileService;
 
     /**
      * 传入fileManager和bufferManager构造一个StorageService实例
      * 
-     * @param fileManager 文件管理器
-     * @param bufferManager 缓存管理器
+     * @param fileService 文件管理器
+     * @param bufferService 缓存管理器
      */
-    public StorageService(FileManager fileManager, BufferService bufferManager) {
-        this.bufferManager = bufferManager;
-        this.fileManager = fileManager;
+    public StorageService(IFileService fileService, IBufferService bufferService) {
+        this.bufferService = bufferService;
+        this.fileService = fileService;
+    }
+
+    /**
+     * 默认构造器供 service loader 加载
+     */
+    public StorageService(){
+        this.bufferService = ExtensionLoader.getExtensionLoader(IBufferService.class).getExtension();
+        this.fileService = ExtensionLoader.getExtensionLoader(IFileService.class).getExtension();;
     }
 
     @Override
     public DBFile createDBFile(String filename, DBFileType type, int pageSize) throws IOException {
-        if (bufferManager.getFile(filename) != null) {
+        if (bufferService.getFile(filename) != null) {
             throw new IllegalStateException(
                     "A file " + filename + " is already cached in the Buffer Manager!  Does it already exist?");
         }
-        DBFile dbFile = fileManager.createDBFile(filename, type, StorageManager.getCurrentPageSize());
-        bufferManager.addFile(dbFile);
+        DBFile dbFile = fileService.createDBFile(filename, type, StorageManager.getCurrentPageSize());
+        bufferService.addFile(dbFile);
         return dbFile;
     }
 
@@ -49,23 +57,23 @@ public class StorageService implements IStorageService {
      */
     @Override
     public DBFile openDBFile(String filename) throws IOException {
-        DBFile dbFile = bufferManager.getFile(filename);
+        DBFile dbFile = bufferService.getFile(filename);
         if (dbFile == null) {
-            dbFile = fileManager.openDBFile(filename);
-            bufferManager.addFile(dbFile);
+            dbFile = fileService.openDBFile(filename);
+            bufferService.addFile(dbFile);
         }
         return dbFile;
     }
 
     @Override
     public DBFile getFile(String filename) {
-        return bufferManager.getFile(filename);
+        return bufferService.getFile(filename);
     }
 
     @Override
     public void closeDBFile(DBFile dbFile) throws IOException {
-        bufferManager.removeDBFile(dbFile);
-        fileManager.closeDBFile(dbFile);
+        bufferService.removeDBFile(dbFile);
+        fileService.closeDBFile(dbFile);
     }
 
     /**
@@ -94,36 +102,36 @@ public class StorageService implements IStorageService {
     public DBPage loadDBPage(DBFile dbFile, int pageNo, boolean create) throws IOException {
 
         // 从buffer中获取
-        DBPage dbPage = bufferManager.getPage(dbFile, pageNo);
+        DBPage dbPage = bufferService.getPage(dbFile, pageNo);
         if (dbPage == null) {
-            dbPage = fileManager.loadDBPage(dbFile, pageNo, create);
-            bufferManager.addPage(dbPage);
+            dbPage = fileService.loadDBPage(dbFile, pageNo, create);
+            bufferService.addPage(dbPage);
         }
         return dbPage;
     }
 
     @Override
     public void unpinDBPage(DBPage dbPage) {
-        bufferManager.unpinPage(dbPage);
+        bufferService.unpinPage(dbPage);
     }
 
     @Override
     public void flushDBFile(DBFile dbFile) throws IOException {
-        bufferManager.flushDBFile(dbFile);
+        bufferService.flushDBFile(dbFile);
     }
 
     @Override
     public void writeDBFile(DBFile dbFile, int minPageNo, int maxPageNo, boolean sync) throws IOException {
-        bufferManager.writeDBFile(dbFile, minPageNo, maxPageNo, sync);
+        bufferService.writeDBFile(dbFile, minPageNo, maxPageNo, sync);
     }
 
     @Override
     public void writeDBFile(DBFile dbFile, boolean sync) throws IOException {
-        bufferManager.writeDBFile(dbFile, sync);
+        bufferService.writeDBFile(dbFile, sync);
     }
 
     @Override
     public void writeAll(boolean sync) throws IOException {
-        bufferManager.writeAll(sync);
+        bufferService.writeAll(sync);
     }
 }

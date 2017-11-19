@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.bow.lab.storage.IStorageService;
+import com.bow.maple.util.ExtensionLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -84,6 +85,12 @@ public class TransactionService implements ITransactionService {
 
     public TransactionService(IStorageService storageService) {
         this.storageService = storageService;
+        this.nextTxnID = new AtomicInteger();
+        this.walService = new WALService(storageService);
+    }
+
+    public TransactionService(){
+        this.storageService = ExtensionLoader.getExtensionLoader(IStorageService.class).getExtension();
         this.nextTxnID = new AtomicInteger();
         this.walService = new WALService(storageService);
     }
@@ -269,9 +276,7 @@ public class TransactionService implements ITransactionService {
 
     /**
      * 强制将到lsn为止的所有WAL落盘。
-     *
      * @param lsn lsn之前的日志全部要落盘
-     *
      * @throws IOException 此处失败了，有可能导致数据库出问题
      */
     public void forceWAL(LogSequenceNumber lsn) throws IOException {

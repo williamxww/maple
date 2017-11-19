@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.bow.maple.util.ExtensionLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,7 +54,7 @@ public class BufferService implements IBufferService {
      */
     private long maxCacheSize;
 
-    private FileManager fileManager;
+    private IFileService fileService;
 
     /**
      * Map<filename,DBFile>所有已打开的文件
@@ -75,8 +76,8 @@ public class BufferService implements IBufferService {
      */
     private Map<Integer, Set<PinnedPageInfo>> pinnedPagesBySessionID;
 
-    public BufferService(FileManager fileManager) {
-        this.fileManager = fileManager;
+    public BufferService(IFileService fileService) {
+        this.fileService = fileService;
         this.maxCacheSize = getMaxCacheSize();
         cachedFiles = new LinkedHashMap<>();
         String replacementPolicy = getReplacementPolicy();
@@ -84,6 +85,10 @@ public class BufferService implements IBufferService {
         totalBytesCached = 0;
         pinnedPages = new HashSet<>();
         pinnedPagesBySessionID = new HashMap<>();
+    }
+    public BufferService() {
+        this(null);
+        this.fileService = ExtensionLoader.getExtensionLoader(IFileService.class).getExtension();
     }
 
     /**
@@ -334,7 +339,7 @@ public class BufferService implements IBufferService {
         if (sync) {
             logger.debug("Syncing file " + dbFile);
             // 真正写到了磁盘
-            fileManager.syncDBFile(dbFile);
+            fileService.syncDBFile(dbFile);
         }
     }
 
@@ -382,7 +387,7 @@ public class BufferService implements IBufferService {
         if (sync) {
             logger.debug("Synchronizing all files containing dirty pages to disk.");
             for (DBFile dbFile : dirtyFiles) {
-                fileManager.syncDBFile(dbFile);
+                fileService.syncDBFile(dbFile);
             }
         }
     }
@@ -453,7 +458,7 @@ public class BufferService implements IBufferService {
         if (!dirtyPages.isEmpty()) {
             // 将脏页刷出到磁盘
             for (DBPage dbPage : dirtyPages) {
-                fileManager.saveDBPage(dbPage);
+                fileService.saveDBPage(dbPage);
                 if (invalidate) {
                     dbPage.invalidate();
                 }

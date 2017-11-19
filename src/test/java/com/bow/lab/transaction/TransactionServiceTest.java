@@ -3,6 +3,8 @@ package com.bow.lab.transaction;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.IOException;
+
 /**
  * @author vv
  * @since 2017/11/15.
@@ -13,7 +15,7 @@ public class TransactionServiceTest extends AbstractTest{
     private ITransactionService service;
 
     @Before
-    public void setup() {
+    public void setup() throws IOException {
         super.setup();
         service = new TransactionService(storageService);
     }

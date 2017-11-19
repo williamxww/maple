@@ -233,7 +233,7 @@ public class WALService implements IWALService {
         LogSequenceNumber begin = recoveryInfo.firstLSN;
         // 指向每个record的最后
         LogSequenceNumber current = recoveryInfo.nextLSN;
-        LogSequenceNumber end = null;
+        LogSequenceNumber end = next;
         LOGGER.debug("Starting undo processing at LSN " + current);
 
         LogSequenceNumber oldLSN = null;

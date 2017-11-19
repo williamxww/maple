@@ -1,64 +1,29 @@
 package com.bow.maple.storage.writeahead;
 
-
 /**
- * This enumeration specifies the various types of records that can appear in
- * the write-ahead log, along with their numeric values that actually appear
- * within the write-ahead log.
+ * 枚举类id从0x51开始，是因为5*16是整数。最好高位不要是1(如0xF1)，高位为1的byte在转int时，高位全补1导致值变了，处理麻烦。
  */
 public enum WALRecordType {
-    /**
-     * The record represents a "&lt;<i>T<sub>i</sub></i>:  start
-     * transaction&gt;" record.
-     */
-    START_TXN(0xF1),
+    START_TXN(0x51),
 
-    /**
-     * The record represents a "&lt;<i>T<sub>i</sub></i>:  update <i>P</i>
-     * &rarr; <i>P'</i> &gt;" record.
-     */
-    UPDATE_PAGE(0xF2),
+    UPDATE_PAGE(0x52),
 
-    /**
-     * The record represents a "&lt;<i>T<sub>i</sub></i>:  update <i>P'</i>
-     * (redo only)&gt;" record.
-     */
-    UPDATE_PAGE_REDO_ONLY(0xF3),
+    UPDATE_PAGE_REDO_ONLY(0x53),
 
-    /**
-     * The record represents a "&lt;<i>T<sub>i</sub></i>:  commit
-     * transaction&gt;" record.
-     */
-    COMMIT_TXN(0xFC),
+    COMMIT_TXN(0x5C),
 
-    /**
-     * The record represents a "&lt;<i>T<sub>i</sub></i>:  abort
-     * transaction&gt;" record.
-     */
-    ABORT_TXN(0xFA);
-
+    ABORT_TXN(0x5A);
 
     private int id;
-
 
     private WALRecordType(int id) {
         this.id = id;
     }
 
-
     public int getID() {
         return id;
     }
 
-
-    /**
-     * Given a numeric type ID, returns the corresponding type value for the ID,
-     * or <tt>null</tt> if no type corresponds to the ID.
-     *
-     * @param id the numeric ID of the type to retrieve
-     *
-     * @return the type-value with that ID, or <tt>null</tt> if not found
-     */
     public static WALRecordType valueOf(int id) {
         for (WALRecordType type : values()) {
             if (type.id == id)

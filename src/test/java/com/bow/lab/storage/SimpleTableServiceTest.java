@@ -1,34 +1,35 @@
 package com.bow.lab.storage;
 
+import java.io.IOException;
+
+import org.junit.Before;
+import org.junit.Test;
+
+import com.bow.lab.transaction.AbstractTest;
+import com.bow.lab.transaction.ITransactionService;
 import com.bow.maple.relations.ColumnInfo;
 import com.bow.maple.relations.ColumnType;
 import com.bow.maple.relations.SQLDataType;
 import com.bow.maple.relations.TableSchema;
 import com.bow.maple.storage.DBFileType;
-import com.bow.maple.storage.FileManager;
 import com.bow.maple.storage.TableFileInfo;
-import org.junit.Before;
-import org.junit.Test;
-
-import java.io.File;
-
-import static org.junit.Assert.*;
+import com.bow.maple.util.ExtensionLoader;
 
 /**
  * @author vv
  * @since 2017/11/11.
  */
-public class CSTableServiceTest {
+public class SimpleTableServiceTest extends AbstractTest {
 
-    private CSTableService service;
+    private SimpleTableService tableService;
+    private ITransactionService txnService;
 
     @Before
-    public void setup(){
-        File dir = new File("test");
-        FileManager fileManager = new FileManager(dir);
-        BufferService bufferManager = new BufferService(fileManager);
-        StorageService storageService = new StorageService(fileManager,bufferManager);
-        service = new CSTableService(storageService);
+    public void setup() throws IOException {
+        super.setup();
+        txnService = ExtensionLoader.getExtensionLoader(ITransactionService.class).getExtension();
+        txnService.initialize();
+        tableService = new SimpleTableService(storageService, txnService);
     }
 
     @Test
@@ -42,9 +43,11 @@ public class CSTableServiceTest {
         ColumnInfo c2 = new ColumnInfo("age",tableName,intType);
         schema.addColumnInfo(c1);
         schema.addColumnInfo(c2);
-        service.createTable(tblFileInfo);
+        txnService.startTransaction(true);
+        tableService.createTable(tblFileInfo);
         // 刷到磁盘
-        service.closeTable(tblFileInfo);
+        tableService.closeTable(tblFileInfo);
+        txnService.commitTransaction();
     }
 
 }

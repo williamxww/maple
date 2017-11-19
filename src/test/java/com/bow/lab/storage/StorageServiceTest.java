@@ -22,7 +22,7 @@ public class StorageServiceTest {
     @Before
     public void setup(){
         File dir = new File("test");
-        FileManager fileManager = new FileManager(dir);
+        IFileService fileManager = new FileService(dir);
         BufferService bufferManager = new BufferService(fileManager);
         service = new StorageService(fileManager,bufferManager);
     }

@@ -80,12 +80,9 @@ public class DBFileReader {
         if (dbFile == null){
             throw new IllegalArgumentException("dbFile cannot be null");
         }
-
         this.storageService = storageService;
-
         this.dbFile = dbFile;
         position = 0;
-
         // The presumption is that page sizes are a power of two.
         pageSize = dbFile.getPageSize();
     }
