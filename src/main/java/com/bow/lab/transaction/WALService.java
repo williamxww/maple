@@ -51,7 +51,7 @@ public class WALService implements IWALService {
     /**
      * 日志记录的起始位置
      */
-    private static final int OFFSET_FIRST_RECORD = 6;
+    public static final int OFFSET_FIRST_RECORD = 6;
 
     private IStorageService storageService;
 
@@ -124,13 +124,11 @@ public class WALService implements IWALService {
         }
 
         performRedo(recoveryInfo);
-        performUndo(next, recoveryInfo);
+        LogSequenceNumber end = performUndo(next, recoveryInfo);
 
         // data pages, and sync all of the affected files.
         storageService.writeAll(true);
-
-        // FIXME 此处应该返回写完undo后的日志
-        return next;
+        return end;
     }
 
     /**
@@ -228,18 +226,21 @@ public class WALService implements IWALService {
      * 执行回滚操作，并记录新的日志。将RecoveryInfo中未完成的事务都回退
      *
      * @param recoveryInfo 指定了要回滚的范围和未完成的事务
+     * @return 写完日志后的偏移量
      * @throws IOException e
      */
-    private void performUndo(LogSequenceNumber next, RecoveryInfo recoveryInfo) throws IOException {
-        LogSequenceNumber current = recoveryInfo.nextLSN;
+    private LogSequenceNumber performUndo(LogSequenceNumber next, RecoveryInfo recoveryInfo) throws IOException {
         LogSequenceNumber begin = recoveryInfo.firstLSN;
+        // 指向每个record的最后
+        LogSequenceNumber current = recoveryInfo.nextLSN;
+        LogSequenceNumber end = null;
         LOGGER.debug("Starting undo processing at LSN " + current);
 
         LogSequenceNumber oldLSN = null;
         DBFileReader walReader = null;
         while (recoveryInfo.hasIncompleteTxns()) {
             // 如果处于日志文件的开始位置，则移动到前一个文件的最后
-            if (ensureRightPosition(current)) {
+            if (!ensureRightPosition(current)) {
                 break;
             }
             // 已回退到最开始位置了
@@ -252,12 +253,12 @@ public class WALService implements IWALService {
                 walReader = getWALFileReader(current);
             }
             // reader移动到txnId上
-            WALRecordType type = moveToTxnId(current, walReader);
+            WALRecordType type = moveToTxnId(walReader);
             if (current.compareTo(begin) < 0) {
                 break;
             }
+
             // 读取transactionID，若此事务已完成，则不处理
-            // FIXME UPDATE_PAGE读取不到transactionID
             int transactionID = walReader.readInt();
             if (recoveryInfo.isTxnComplete(transactionID)) {
                 oldLSN = current;
@@ -266,13 +267,19 @@ public class WALService implements IWALService {
 
             // 开始执行回退
             LOGGER.debug("Undoing WAL record at {}.  Type = {}, TxnID = {}", current, type, transactionID);
-            performUndo(next, recoveryInfo, type, transactionID, walReader);
-
+            end = performUndo(next, recoveryInfo, type, transactionID, walReader);
             oldLSN = current;
         }
         LOGGER.debug("Undo processing is complete.");
+        return end;
     }
 
+    /**
+     * 确保current指向正确的位置，从后向前回滚，当回到file的头时，需要跳到前一个文件的尾部
+     * @param current 当前LSN指向的位置
+     * @return 已调到正确位置
+     * @throws IOException e
+     */
     private boolean ensureRightPosition(LogSequenceNumber current) throws IOException {
         int logFileNo = current.getLogFileNo();
         int fileOffset = current.getFileOffset();
@@ -306,8 +313,14 @@ public class WALService implements IWALService {
         return true;
     }
 
-    private WALRecordType moveToTxnId(LogSequenceNumber current, DBFileReader walReader) throws IOException {
-        int fileOffset = current.getFileOffset();
+    /**
+     * 将reader移动到record的txnId起始字节处。
+     * @param walReader 日志reader
+     * @return 当前record的type
+     * @throws IOException e
+     */
+    private WALRecordType moveToTxnId(DBFileReader walReader) throws IOException {
+        int fileOffset = walReader.getPosition();
         // WAL记录的最后一个字节都是type,向前移动1byte便于读取typeId
         walReader.movePosition(-1);
         byte typeID = walReader.readByte();
@@ -332,26 +345,26 @@ public class WALService implements IWALService {
             case UPDATE_PAGE_REDO_ONLY:
                 // startOffset(4B)+Type(1B)
                 walReader.movePosition(-5);
-                startOffset = walReader.readInt();
+                startOffset = walReader.readInt()+1;
                 break;
 
             default:
-                throw new WALFileException("Encountered unrecognized WAL record type " + type + " at LSN " + current
-                        + " during redo processing!");
+                throw new WALFileException("Encountered unrecognized WAL record type " + type + " during redo processing!");
         }
-        current.setFileOffset(startOffset);
+        walReader.setPosition(startOffset);
         return type;
     }
 
-    private void performUndo(LogSequenceNumber next, RecoveryInfo recoveryInfo, WALRecordType type, int transactionID,
+    private LogSequenceNumber performUndo(LogSequenceNumber next, RecoveryInfo recoveryInfo, WALRecordType type, int transactionID,
             DBFileReader walReader) throws IOException {
+        LogSequenceNumber end = null;
         // 开始执行回滚操作
         switch (type) {
             case START_TXN:
                 // Record that the transaction is aborted.
-                writeTxnRecord(next, WALRecordType.ABORT_TXN, transactionID, recoveryInfo.getLastLSN(transactionID));
+                end = writeTxnRecord(next, WALRecordType.ABORT_TXN, transactionID, recoveryInfo.getLastLSN(transactionID));
 
-                LOGGER.debug(String.format("Undo phase:  aborted transaction %d", transactionID));
+                LOGGER.debug("Undo phase:  aborted transaction {}", transactionID);
                 recoveryInfo.recordTxnCompleted(transactionID);
                 break;
 
@@ -373,10 +386,10 @@ public class WALService implements IWALService {
                 LOGGER.debug("Undoing changes to file {}, page {} ({} segments)", undoFile, undoPageNo, numSegments);
 
                 // 执行回退操作
-                byte[] redoOnlyData = applyUndo(walReader, undoPage, numSegments);
+                byte[] undoData = applyUndo(walReader, undoPage, numSegments);
                 // 将回退操作的内容也记录到新的日志中
-                writeRedoRecord(next, transactionID, recoveryInfo.getLastLSN(transactionID), undoPage, numSegments,
-                        redoOnlyData);
+                end = writeRedoRecord(next, transactionID, recoveryInfo.getLastLSN(transactionID), undoPage, numSegments,
+                        undoData);
 
                 recoveryInfo.updateInfo(transactionID, next);
                 break;
@@ -389,6 +402,7 @@ public class WALService implements IWALService {
                 throw new WALFileException(
                         "Encountered unrecognized WAL record type " + type + " during undo processing!");
         }
+        return end;
     }
 
 

@@ -3,7 +3,8 @@ package com.bow.maple.storage;
 
 import com.bow.lab.storage.IStorageService;
 import com.bow.maple.util.ExtensionLoader;
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -30,8 +31,7 @@ import java.io.UnsupportedEncodingException;
  * </p>
  */
 public class DBFileReader {
-    /** A logging object for reporting anything interesting that happens. */
-    private static Logger logger = Logger.getLogger(DBFileReader.class);
+    private static Logger logger = LoggerFactory.getLogger(DBFileReader.class);
 
 
     /**
