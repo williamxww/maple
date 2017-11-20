@@ -173,9 +173,6 @@ public class SimpleTableService implements ITableService {
         }
 
         if (dbPage == null) {
-            // Try to create a new page at the end of the file. In this
-            // circumstance, pageNo is *just past* the last page in the data
-            // file.
             LOGGER.debug("Creating new page " + pageNo + " to store new tuple.");
             dbPage = storageService.loadDBPage(dbFile, pageNo, true);
             DataPage.initNewPage(dbPage);

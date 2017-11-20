@@ -1,29 +1,28 @@
 package com.bow.maple.storage;
 
-
 import java.io.UnsupportedEncodingException;
 import java.util.Arrays;
 
 import com.bow.maple.expressions.TypeConverter;
-import org.apache.log4j.Logger;
 
 import com.bow.maple.relations.ColumnType;
 import com.bow.maple.storage.writeahead.LogSequenceNumber;
-
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * This class represents a single page in a database file.  The page's
+ * This class represents a single page in a database file. The page's
  * (zero-based) index in the file, and whether the page has been changed in
  * memory, are tracked by the object.
  * <p>
  * Database pages do not provide any locking mechanisms to guard against
- * concurrent access.  Locking must be managed at a level above what this class
+ * concurrent access. Locking must be managed at a level above what this class
  * provides.
  * <p>
  * The class provides methods to read and write a wide range of data types.
  * Multibyte values are stored in big-endian format, with the most significant
  * byte (MSB) stored at the lowest index, and the least significant byte (LSB)
- * stored at the highest index.  (This is also the network byte order specified
+ * stored at the highest index. (This is also the network byte order specified
  * by the Internet Protocol.)
  *
  * @see PageReader
@@ -38,45 +37,38 @@ import com.bow.maple.storage.writeahead.LogSequenceNumber;
  */
 public class DBPage {
 
-    /** A logging object for reporting anything interesting that happens. */
-    private static Logger logger = Logger.getLogger(DBPage.class);
-
+    private static Logger logger = LoggerFactory.getLogger(DBPage.class);
 
     /** A reference to the database file that this page is from. */
     private DBFile dbFile;
 
     /**
-     * The page number in the table file.  A value of 0 is the first page
-     * in the file.
+     * The page number in the table file. A value of 0 is the first page in the
+     * file.
      */
     private int pageNo;
 
-
     /**
-     * The pin-count of this page.  When nonzero, the page is not allowed to be
+     * The pin-count of this page. When nonzero, the page is not allowed to be
      * flushed from the buffer manager since the page is being used by at least
      * one session.
      */
     private int pinCount;
 
-
     /** This flag is true if this page has been modified in memory. */
     private boolean dirty;
-
 
     /**
      * For dirty pages, this field is set to the Log Sequence Number of the
      * write-ahead log record corresponding to the most recent write to the
-     * page.  When the page is being flushed back to disk, the write-ahead log
+     * page. When the page is being flushed back to disk, the write-ahead log
      * must be written to at least this point, or else the write-ahead logging
      * rule will be violated.
      */
     private LogSequenceNumber pageLSN;
 
-
     /** The actual data for the table-page. */
     private byte[] pageData;
-
 
     /**
      * When the page is marked dirty, this gets set to the original version of
@@ -84,11 +76,10 @@ public class DBPage {
      */
     private byte[] oldPageData;
 
-
     /**
-     * Constructs a new, empty table-page for the specified table file.
-     * Note that the page data is not loaded into the object; that must be
-     * done in a separate step.
+     * Constructs a new, empty table-page for the specified table file. Note
+     * that the page data is not loaded into the object; that must be done in a
+     * separate step.
      *
      * @param dbFile The database file that this page is contained within.
      *
@@ -103,8 +94,7 @@ public class DBPage {
             throw new NullPointerException("dbFile must not be null");
 
         if (pageNo < 0) {
-            throw new IllegalArgumentException("pageNo must be >= 0 (got " +
-                pageNo + ")");
+            throw new IllegalArgumentException("pageNo must be >= 0 (got " + pageNo + ")");
         }
 
         this.dbFile = dbFile;
@@ -118,7 +108,6 @@ public class DBPage {
         oldPageData = null;
     }
 
-
     /**
      * Returns the database file that this page is contained within.
      *
@@ -128,9 +117,8 @@ public class DBPage {
         return dbFile;
     }
 
-
     /**
-     * Returns true if this page is from the specified database file.  This
+     * Returns true if this page is from the specified database file. This
      * function simply uses {@link DBFile#equals} for the comparison.
      *
      * @param databaseFile the database file to examine this page for membership
@@ -141,7 +129,6 @@ public class DBPage {
         return dbFile.equals(databaseFile);
     }
 
-
     /**
      * Returns the page-number of this database page.
      *
@@ -150,7 +137,6 @@ public class DBPage {
     public int getPageNo() {
         return pageNo;
     }
-
 
     /**
      * Returns the page size in bytes.
@@ -161,43 +147,36 @@ public class DBPage {
         return pageData.length;
     }
 
-    
     public void incPinCount() {
         pinCount++;
     }
-    
-    
+
     public void decPinCount() {
         if (pinCount <= 0) {
-            throw new IllegalStateException(
-                "pinCount is not positive (value is " + pinCount + ")");
+            throw new IllegalStateException("pinCount is not positive (value is " + pinCount + ")");
         }
 
         pinCount--;
     }
-    
-    
+
     public int getPinCount() {
         return pinCount;
     }
 
-
     public boolean isPinned() {
         return (pinCount > 0);
     }
-    
 
     /**
-     * Returns the byte-array of the page's data.  <b>Note that if any changes
-     * are made to the page's data, the dirty-flag must be updated
-     * appropriately or else the data will not be written back to the file.</b>
+     * Returns the byte-array of the page's data. <b>Note that if any changes
+     * are made to the page's data, the dirty-flag must be updated appropriately
+     * or else the data will not be written back to the file.</b>
      *
      * @return a byte-array containing the page's data
      */
     public byte[] getPageData() {
         return pageData;
     }
-
 
     /**
      * Returns the byte-array of the page's data at the last point when the page
@@ -216,10 +195,9 @@ public class DBPage {
     public void syncOldPageData() {
         if (oldPageData == null)
             throw new IllegalStateException("No old page data to sync");
-        
+
         System.arraycopy(pageData, 0, oldPageData, 0, pageData.length);
     }
-    
 
     /**
      * Returns true if the page's data has been changed in memory; false
@@ -240,36 +218,32 @@ public class DBPage {
      */
     public void setDirty(boolean dirty) {
         if (!this.dirty && dirty) {
-            // Page is being changed from clean to dirty.  Duplicate the current
+            // Page is being changed from clean to dirty. Duplicate the current
             // data so that we have it when updating the write-ahead log.
             oldPageData = pageData.clone();
-        }
-        else if (this.dirty && !dirty) {
-            // Page is being changed from dirty to clean.  Clear out the old
+        } else if (this.dirty && !dirty) {
+            // Page is being changed from dirty to clean. Clear out the old
             // page data since we don't need it anymore.
             oldPageData = null;
 
             // Clear out the page-LSN value as well.
             pageLSN = null;
         }
-        
+
         this.dirty = dirty;
     }
-
 
     public LogSequenceNumber getPageLSN() {
         return pageLSN;
     }
 
-
     public void setPageLSN(LogSequenceNumber lsn) {
         pageLSN = lsn;
     }
 
-
     /**
      * This method makes the {@code DBPage} invalid by clearing all of its
-     * internal references.  It is used by the Buffer Manager when a page is
+     * internal references. It is used by the Buffer Manager when a page is
      * removed from the cache so that no other database code will continue to
      * try to use the page.
      */
@@ -280,15 +254,13 @@ public class DBPage {
         oldPageData = null;
     }
 
-
-    /*=============================*/
+    /* ============================= */
     /* TYPED DATA ACCESS FUNCTIONS */
-    /*=============================*/
-
+    /* ============================= */
 
     /**
-     * Read a sequence of bytes into the provided byte-array, starting with
-     * the specified offset, and reading the specified number of bytes.
+     * Read a sequence of bytes into the provided byte-array, starting with the
+     * specified offset, and reading the specified number of bytes.
      *
      * @param position the starting index within the page to start reading data
      *
@@ -302,10 +274,9 @@ public class DBPage {
         System.arraycopy(pageData, position, b, off, len);
     }
 
-
     /**
-     * Read a sequence of bytes into the provided byte-array.  The entire
-     * array is filled from start to end.
+     * Read a sequence of bytes into the provided byte-array. The entire array
+     * is filled from start to end.
      *
      * @param position the starting index within the page to start reading data
      *
@@ -314,7 +285,6 @@ public class DBPage {
     public void read(int position, byte[] b) {
         read(position, b, 0, b.length);
     }
-
 
     /**
      * Write a sequence of bytes from a byte-array into the page, starting with
@@ -334,9 +304,8 @@ public class DBPage {
         System.arraycopy(b, off, pageData, position, len);
     }
 
-
     /**
-     * Write a sequence of bytes from a byte-array into the page.  The entire
+     * Write a sequence of bytes from a byte-array into the page. The entire
      * contents of the array is written to the page.
      *
      * @param position the starting index within the page to start writing data
@@ -347,7 +316,6 @@ public class DBPage {
         // Use the version of write() with extra args.
         write(position, b, 0, b.length);
     }
-
 
     /**
      * Move the specified data region in the page.
@@ -361,7 +329,6 @@ public class DBPage {
         System.arraycopy(pageData, srcPosition, pageData, dstPosition, length);
     }
 
-
     /**
      * Write the specified value.
      *
@@ -374,13 +341,11 @@ public class DBPage {
         for (int i = 0; i < length; i++)
             pageData[position + i] = value;
     }
-    
-
 
     /**
-     * Reads and returns a Boolean value from the specified position.  The
-     * Boolean value is encoded as a single byte; a zero value is interpreted
-     * as <tt>false</tt>, and a nonzero value is interpreted as <tt>true</tt>.
+     * Reads and returns a Boolean value from the specified position. The
+     * Boolean value is encoded as a single byte; a zero value is interpreted as
+     * <tt>false</tt>, and a nonzero value is interpreted as <tt>true</tt>.
      *
      * @param position the starting location in the page to start reading the
      *        value from
@@ -392,7 +357,7 @@ public class DBPage {
     }
 
     /**
-     * Writes a Boolean value to the specified position.  The Boolean value is
+     * Writes a Boolean value to the specified position. The Boolean value is
      * encoded as a single byte; <tt>false</tt> is written as 0, and
      * <tt>true</tt> is written as 1.
      *
@@ -404,7 +369,6 @@ public class DBPage {
         setDirty(true);
         pageData[position] = (byte) (value ? 1 : 0);
     }
-
 
     /**
      * Reads and returns a signed byte from the specified position.
@@ -418,7 +382,7 @@ public class DBPage {
     }
 
     /**
-     * Writes a (signed or unsigned) byte to the specified position.  The byte
+     * Writes a (signed or unsigned) byte to the specified position. The byte
      * value is specified as an integer for the sake of convenience
      * (specifically to avoid having to cast an argument to a byte value), but
      * the input is also truncated down to the low 8 bits.
@@ -432,11 +396,10 @@ public class DBPage {
         pageData[position] = (byte) value;
     }
 
-
     /**
-     * Reads and returns an unsigned byte from the specified position.  The
-     * value is returned as an <tt>int</tt> whose value will be between
-     * 0 and 255, inclusive.
+     * Reads and returns an unsigned byte from the specified position. The value
+     * is returned as an <tt>int</tt> whose value will be between 0 and 255,
+     * inclusive.
      *
      * @param position the location in the page to read the value from
      *
@@ -446,43 +409,40 @@ public class DBPage {
         return pageData[position] & 0xFF;
     }
 
-
     /**
-     * Reads and returns an unsigned short from the specified position.  The
-     * value is returned as an <tt>int</tt> whose value will be between
-     * 0 and 65535, inclusive.
+     * Reads and returns an unsigned short from the specified position. The
+     * value is returned as an <tt>int</tt> whose value will be between 0 and
+     * 65535, inclusive.
      *
      * @param position the location in the page to start reading the value from
      *
      * @return the unsigned short value, as an integer
      */
     public int readUnsignedShort(int position) {
-        int value = ((pageData[position++] & 0xFF) <<  8)
-                  | ((pageData[position  ] & 0xFF)      );
+        int value = ((pageData[position++] & 0xFF) << 8) | ((pageData[position] & 0xFF));
 
         return value;
     }
 
     /**
-     * Reads and returns a signed short from the specified position.  The
-     * value is returned as a <tt>short</tt>.
+     * Reads and returns a signed short from the specified position. The value
+     * is returned as a <tt>short</tt>.
      *
      * @param position the location in the page to start reading the value from
      *
      * @return the signed short value
      */
     public short readShort(int position) {
-        // Don't chop off high-order bits.  When byte is cast to int, the sign
+        // Don't chop off high-order bits. When byte is cast to int, the sign
         // will be extended, so if original byte is negative, the resulting
         // int will be too.
-        int value = ((pageData[position++]       ) <<  8)
-                  | ((pageData[position  ] & 0xFF)      );
+        int value = ((pageData[position++]) << 8) | ((pageData[position] & 0xFF));
 
         return (short) value;
     }
 
     /**
-     * Writes a (signed or unsigned) short to the specified position.  The short
+     * Writes a (signed or unsigned) short to the specified position. The short
      * value is specified as an integer for the sake of convenience
      * (specifically to avoid having to cast an argument to a short value), but
      * the input is also truncated down to the low 16 bits.
@@ -495,9 +455,8 @@ public class DBPage {
         setDirty(true);
 
         pageData[position++] = (byte) (0xFF & (value >> 8));
-        pageData[position  ] = (byte) (0xFF &  value);
+        pageData[position] = (byte) (0xFF & value);
     }
-
 
     /**
      * Reads and returns a two-byte char value from the specified position.
@@ -506,21 +465,20 @@ public class DBPage {
      *
      * @return the char value
      */
-    public char readChar(int position)
-    {
-        // NOTE:  Exactly like readShort(), but result is cast to a different
+    public char readChar(int position) {
+        // NOTE: Exactly like readShort(), but result is cast to a different
         // type.
 
-        // Don't chop off high-order bits.  When byte is cast to int, the sign will
+        // Don't chop off high-order bits. When byte is cast to int, the sign
+        // will
         // be extended, so if original byte is negative, so will resulting int.
-        int value = ((pageData[position++]       ) <<  8)
-                  | ((pageData[position  ] & 0xFF)      );
+        int value = ((pageData[position++]) << 8) | ((pageData[position] & 0xFF));
 
         return (char) value;
     }
 
     /**
-     * Writes a char to the specified position.  The char value is specified as
+     * Writes a char to the specified position. The char value is specified as
      * an integer for the sake of convenience (specifically to avoid having to
      * cast an argument to a char value), but the input is also truncated down
      * to the low 16 bits.
@@ -534,7 +492,6 @@ public class DBPage {
         writeShort(position, value);
     }
 
-
     /**
      * Reads and returns a 4-byte unsigned integer value from the specified
      * position.
@@ -544,14 +501,11 @@ public class DBPage {
      * @return the unsigned integer value, as a long
      */
     public long readUnsignedInt(int position) {
-        long value = ((pageData[position++] & 0xFF) << 24)
-                   | ((pageData[position++] & 0xFF) << 16)
-                   | ((pageData[position++] & 0xFF) <<  8)
-                   | ((pageData[position  ] & 0xFF)      );
+        long value = ((pageData[position++] & 0xFF) << 24) | ((pageData[position++] & 0xFF) << 16)
+                | ((pageData[position++] & 0xFF) << 8) | ((pageData[position] & 0xFF));
 
         return value;
     }
-
 
     /**
      * Reads and returns a 4-byte integer value from the specified position.
@@ -561,10 +515,8 @@ public class DBPage {
      * @return the signed int value
      */
     public int readInt(int position) {
-        int value = ((pageData[position++] & 0xFF) << 24)
-                  | ((pageData[position++] & 0xFF) << 16)
-                  | ((pageData[position++] & 0xFF) <<  8)
-                  | ((pageData[position  ] & 0xFF)      );
+        int value = ((pageData[position++] & 0xFF) << 24) | ((pageData[position++] & 0xFF) << 16)
+                | ((pageData[position++] & 0xFF) << 8) | ((pageData[position] & 0xFF));
 
         return value;
     }
@@ -581,10 +533,9 @@ public class DBPage {
 
         pageData[position++] = (byte) (0xFF & (value >> 24));
         pageData[position++] = (byte) (0xFF & (value >> 16));
-        pageData[position++] = (byte) (0xFF & (value >>  8));
-        pageData[position  ] = (byte) (0xFF &  value);
+        pageData[position++] = (byte) (0xFF & (value >> 8));
+        pageData[position] = (byte) (0xFF & value);
     }
-
 
     /**
      * Reads and returns an 8-byte long integer value from the specified
@@ -595,14 +546,10 @@ public class DBPage {
      * @return the signed long value
      */
     public long readLong(int position) {
-        long value = ((long) (pageData[position++] & 0xFF) << 56)
-                   | ((long) (pageData[position++] & 0xFF) << 48)
-                   | ((long) (pageData[position++] & 0xFF) << 40)
-                   | ((long) (pageData[position++] & 0xFF) << 32)
-                   | ((long) (pageData[position++] & 0xFF) << 24)
-                   | ((long) (pageData[position++] & 0xFF) << 16)
-                   | ((long) (pageData[position++] & 0xFF) <<  8)
-                   | ((long) (pageData[position  ] & 0xFF)      );
+        long value = ((long) (pageData[position++] & 0xFF) << 56) | ((long) (pageData[position++] & 0xFF) << 48)
+                | ((long) (pageData[position++] & 0xFF) << 40) | ((long) (pageData[position++] & 0xFF) << 32)
+                | ((long) (pageData[position++] & 0xFF) << 24) | ((long) (pageData[position++] & 0xFF) << 16)
+                | ((long) (pageData[position++] & 0xFF) << 8) | ((long) (pageData[position] & 0xFF));
 
         return value;
     }
@@ -623,35 +570,30 @@ public class DBPage {
         pageData[position++] = (byte) (0xFF & (value >> 32));
         pageData[position++] = (byte) (0xFF & (value >> 24));
         pageData[position++] = (byte) (0xFF & (value >> 16));
-        pageData[position++] = (byte) (0xFF & (value >>  8));
-        pageData[position  ] = (byte) (0xFF &  value);
+        pageData[position++] = (byte) (0xFF & (value >> 8));
+        pageData[position] = (byte) (0xFF & value);
     }
-
 
     public float readFloat(int position) {
         return Float.intBitsToFloat(readInt(position));
     }
 
-
     public void writeFloat(int position, float value) {
         writeInt(position, Float.floatToIntBits(value));
     }
-
 
     public double readDouble(int position) {
         return Double.longBitsToDouble(readLong(position));
     }
 
-
     public void writeDouble(int position, double value) {
         writeLong(position, Double.doubleToLongBits(value));
     }
 
-
     /**
      * This method reads and returns a variable-length string whose maximum
-     * length is 255 bytes.  The string is expected to be in US-ASCII
-     * encoding, so multibyte characters are not supported.
+     * length is 255 bytes. The string is expected to be in US-ASCII encoding,
+     * so multibyte characters are not supported.
      * <p>
      * The string's data format is expected to be a single unsigned byte
      * <em>b</em> specifying the string's length, followed by <em>b</em> more
@@ -669,10 +611,9 @@ public class DBPage {
 
         try {
             str = new String(pageData, position, len, "US-ASCII");
-        }
-        catch (UnsupportedEncodingException e) {
+        } catch (UnsupportedEncodingException e) {
             // According to the Java docs, the US-ASCII character-encoding is
-            // required to be supported by all JVMs.  So, this is not supposed
+            // required to be supported by all JVMs. So, this is not supposed
             // to happen.
             logger.error("The unthinkable has happened:  " + e);
         }
@@ -682,9 +623,9 @@ public class DBPage {
 
     /**
      * 在写字符串前先写length然后再value<br/>
-     * This method stores a variable-length string whose maximum length is
-     * 255 bytes.  The string is expected to be in US-ASCII encoding, so
-     * multibyte characters are not supported.
+     * This method stores a variable-length string whose maximum length is 255
+     * bytes. The string is expected to be in US-ASCII encoding, so multibyte
+     * characters are not supported.
      * <p>
      * The string is stored as a single unsigned byte <em>b</em> specifying the
      * string's length, followed by <em>b</em> more bytes consisting of the
@@ -696,18 +637,17 @@ public class DBPage {
      *
      * @throws NullPointerException if <tt>value</tt> is <tt>null</tt>
      *
-     * @throws IllegalArgumentException if the input string is longer than
-     *         255 characters
+     * @throws IllegalArgumentException if the input string is longer than 255
+     *         characters
      */
     public void writeVarString255(int position, String value) {
         byte[] bytes;
 
         try {
             bytes = value.getBytes("US-ASCII");
-        }
-        catch (UnsupportedEncodingException e) {
+        } catch (UnsupportedEncodingException e) {
             // According to the Java docs, the US-ASCII character-encoding is
-            // required to be supported by all JVMs.  So, this is not supposed
+            // required to be supported by all JVMs. So, this is not supposed
             // to happen.
             logger.error("The unthinkable has happened!", e);
             throw new RuntimeException("The unthinkable has happened!", e);
@@ -721,11 +661,10 @@ public class DBPage {
         write(position + 1, bytes);
     }
 
-
     /**
      * This method reads and returns a variable-length string whose maximum
-     * length is 65535 bytes.  The string is expected to be in US-ASCII
-     * encoding, so multibyte characters are not supported.
+     * length is 65535 bytes. The string is expected to be in US-ASCII encoding,
+     * so multibyte characters are not supported.
      * <p>
      * The string's data format is expected to be a single unsigned short (two
      * bytes) <em>s</em> specifying the string's length, followed by <em>s</em>
@@ -744,10 +683,9 @@ public class DBPage {
 
         try {
             str = new String(pageData, position, len, "US-ASCII");
-        }
-        catch (UnsupportedEncodingException e) {
+        } catch (UnsupportedEncodingException e) {
             // According to the Java docs, the US-ASCII character-encoding is
-            // required to be supported by all JVMs.  So, this is not supposed
+            // required to be supported by all JVMs. So, this is not supposed
             // to happen.
             logger.error("The unthinkable has happened:  " + e);
         }
@@ -756,9 +694,9 @@ public class DBPage {
     }
 
     /**
-     * This method stores a variable-length string whose maximum length is
-     * 65535 bytes.  The string is expected to be in US-ASCII encoding, so
-     * multibyte characters are not supported.
+     * This method stores a variable-length string whose maximum length is 65535
+     * bytes. The string is expected to be in US-ASCII encoding, so multibyte
+     * characters are not supported.
      * <p>
      * The string is stored as a single unsigned short <em>s</em> specifying the
      * string's length, followed by <em>s</em> more bytes consisting of the
@@ -770,18 +708,17 @@ public class DBPage {
      *
      * @throws NullPointerException if <tt>value</tt> is <tt>null</tt>
      *
-     * @throws IllegalArgumentException if the input string is longer than
-     *         65535 characters
+     * @throws IllegalArgumentException if the input string is longer than 65535
+     *         characters
      */
     public void writeVarString65535(int position, String value) {
         byte[] bytes;
 
         try {
             bytes = value.getBytes("US-ASCII");
-        }
-        catch (UnsupportedEncodingException e) {
+        } catch (UnsupportedEncodingException e) {
             // According to the Java docs, the US-ASCII character-encoding is
-            // required to be supported by all JVMs.  So, this is not supposed
+            // required to be supported by all JVMs. So, this is not supposed
             // to happen.
             logger.error("The unthinkable has happened!", e);
             throw new RuntimeException("The unthinkable has happened!", e);
@@ -795,21 +732,20 @@ public class DBPage {
         write(position + 2, bytes);
     }
 
-
     /**
      * This method reads and returns a string whose length is fixed at a
-     * constant size.  The string is expected to be in US-ASCII encoding, so
+     * constant size. The string is expected to be in US-ASCII encoding, so
      * multibyte characters are not supported.
      * <p>
-     * Strings shorter than the specified length are padded with 0 bytes at the end of the string, and
-     * this padding is removed when the string is read.
+     * Strings shorter than the specified length are padded with 0 bytes at the
+     * end of the string, and this padding is removed when the string is read.
      *
      *
      * The string's characters are stored starting with the specified position.
      * If the string is shorter than the fixed length then the data is expected
-     * to be terminated with a <tt>\\u0000</tt> (i.e. <tt>NUL</tt>) value.  (If
+     * to be terminated with a <tt>\\u0000</tt> (i.e. <tt>NUL</tt>) value. (If
      * the string is exactly the given length then no string terminator is
-     * expected.)  <b>The implication of this storage format is that embedded
+     * expected.) <b>The implication of this storage format is that embedded
      * <tt>NUL</tt> characters are not allowed with this storage format.</b>
      *
      * @param position the location in the page to start reading the value from
@@ -829,10 +765,9 @@ public class DBPage {
 
         try {
             str = new String(pageData, position, len, "US-ASCII");
-        }
-        catch (UnsupportedEncodingException e) {
+        } catch (UnsupportedEncodingException e) {
             // According to the Java docs, the US-ASCII character-encoding is
-            // required to be supported by all JVMs.  So, this is not supposed
+            // required to be supported by all JVMs. So, this is not supposed
             // to happen.
             logger.error("The unthinkable has happened:  " + e);
         }
@@ -841,14 +776,14 @@ public class DBPage {
     }
 
     /**
-     * This method stores a string whose length is fixed at a constant size.
-     * The string is expected to be in US-ASCII encoding, so multibyte
-     * characters are not supported.
+     * This method stores a string whose length is fixed at a constant size. The
+     * string is expected to be in US-ASCII encoding, so multibyte characters
+     * are not supported.
      * <p>
      * The string's characters are stored starting with the specified position.
      * If the string is shorter than the fixed length then the data is padded
-     * with <tt>\\u0000</tt> (i.e. <tt>NUL</tt>) values.  If the string is
-     * exactly the given length then no string terminator is stored.  <b>The
+     * with <tt>\\u0000</tt> (i.e. <tt>NUL</tt>) values. If the string is
+     * exactly the given length then no string terminator is stored. <b>The
      * implication of this storage format is that embedded <tt>NUL</tt>
      * characters are not allowed with this storage format.</b>
      *
@@ -868,18 +803,16 @@ public class DBPage {
 
         try {
             bytes = value.getBytes("US-ASCII");
-        }
-        catch (UnsupportedEncodingException e) {
+        } catch (UnsupportedEncodingException e) {
             // According to the Java docs, the US-ASCII character-encoding is
-            // required to be supported by all JVMs.  So, this is not supposed
+            // required to be supported by all JVMs. So, this is not supposed
             // happen.
             logger.error("The unthinkable has happened!", e);
             throw new RuntimeException("The unthinkable has happened!", e);
         }
 
         if (bytes.length > len) {
-            throw new IllegalArgumentException("value must be " + len +
-                " bytes or less");
+            throw new IllegalArgumentException("value must be " + len + " bytes or less");
         }
 
         // This function sets the dirty flag.
@@ -889,11 +822,10 @@ public class DBPage {
         Arrays.fill(pageData, position + bytes.length, position + len, (byte) 0);
     }
 
-
     /**
      * This method provides a higher-level wrapper around the other methods in
-     * the <tt>DBPage</tt> class, allowing object-values to be read, as long
-     * as the data-type is provided along with the object.
+     * the <tt>DBPage</tt> class, allowing object-values to be read, as long as
+     * the data-type is provided along with the object.
      *
      * @param position the location in the page to start reading the value from
      *
@@ -912,51 +844,48 @@ public class DBPage {
 
         switch (colType.getBaseType()) {
 
-        case INTEGER:
-            value = Integer.valueOf(readInt(position));
-            break;
+            case INTEGER:
+                value = Integer.valueOf(readInt(position));
+                break;
 
-        case SMALLINT:
-            value = Short.valueOf(readShort(position));
-            break;
+            case SMALLINT:
+                value = Short.valueOf(readShort(position));
+                break;
 
-        case BIGINT:
-            value = Long.valueOf(readLong(position));
-            break;
+            case BIGINT:
+                value = Long.valueOf(readLong(position));
+                break;
 
-        case TINYINT:
-            value = Byte.valueOf(readByte(position));
-            break;
+            case TINYINT:
+                value = Byte.valueOf(readByte(position));
+                break;
 
-        case FLOAT:
-            value = Float.valueOf(readFloat(position));
-            break;
+            case FLOAT:
+                value = Float.valueOf(readFloat(position));
+                break;
 
-        case DOUBLE:
-            value = Double.valueOf(readDouble(position));
-            break;
+            case DOUBLE:
+                value = Double.valueOf(readDouble(position));
+                break;
 
-        case CHAR:
-            value = readFixedSizeString(position, colType.getLength());
-            break;
+            case CHAR:
+                value = readFixedSizeString(position, colType.getLength());
+                break;
 
-        case VARCHAR:
-            value = readVarString65535(position);
-            break;
+            case VARCHAR:
+                value = readVarString65535(position);
+                break;
 
-        case FILE_POINTER:
-            value = new FilePointer(readUnsignedShort(position),
-                                    readUnsignedShort(position + 2));
-            break;
+            case FILE_POINTER:
+                value = new FilePointer(readUnsignedShort(position), readUnsignedShort(position + 2));
+                break;
 
-        default:
-            throw new UnsupportedOperationException(
-                "Cannot currently read type " + colType.getBaseType());
+            default:
+                throw new UnsupportedOperationException("Cannot currently read type " + colType.getBaseType());
         }
 
         return value;
     }
-
 
     /**
      * This method provides a higher-level wrapper around the other methods in
@@ -989,75 +918,66 @@ public class DBPage {
 
         int dataSize;
 
-        // This code relies on Java autoboxing.  Go, syntactic sugar.
+        // This code relies on Java autoboxing. Go, syntactic sugar.
         switch (colType.getBaseType()) {
 
-        case INTEGER:
-            {
+            case INTEGER: {
                 int iVal = TypeConverter.getIntegerValue(value);
                 writeInt(position, iVal);
                 dataSize = 4;
                 break;
             }
 
-        case SMALLINT:
-            {
+            case SMALLINT: {
                 short sVal = TypeConverter.getShortValue(value);
                 writeShort(position, sVal);
                 dataSize = 2;
                 break;
             }
 
-        case BIGINT:
-            {
+            case BIGINT: {
                 long lVal = TypeConverter.getLongValue(value);
                 writeLong(position, lVal);
                 dataSize = 8;
                 break;
             }
 
-        case TINYINT:
-            {
+            case TINYINT: {
                 byte bVal = TypeConverter.getByteValue(value);
                 writeByte(position, bVal);
                 dataSize = 1;
                 break;
             }
 
-        case FLOAT:
-            {
+            case FLOAT: {
                 float fVal = TypeConverter.getFloatValue(value);
                 writeFloat(position, fVal);
                 dataSize = 4;
                 break;
             }
 
-        case DOUBLE:
-            {
+            case DOUBLE: {
                 double dVal = TypeConverter.getDoubleValue(value);
                 writeDouble(position, dVal);
                 dataSize = 8;
                 break;
             }
 
-        case CHAR:
-            {
+            case CHAR: {
                 String strVal = TypeConverter.getStringValue(value);
                 writeFixedSizeString(position, strVal, colType.getLength());
                 dataSize = colType.getLength();
                 break;
             }
 
-        case VARCHAR:
-            {
+            case VARCHAR: {
                 String strVal = TypeConverter.getStringValue(value);
                 writeVarString65535(position, strVal);
                 dataSize = 2 + strVal.length();
                 break;
             }
 
-        case FILE_POINTER:
-            {
+            case FILE_POINTER: {
                 FilePointer fptr = (FilePointer) value;
                 writeShort(position, fptr.getPageNo());
                 writeShort(position + 2, fptr.getOffset());
@@ -1065,17 +985,16 @@ public class DBPage {
                 break;
             }
 
-        default:
-            throw new UnsupportedOperationException(
-                "Cannot currently store type " + colType.getBaseType());
+            default:
+                throw new UnsupportedOperationException("Cannot currently store type " + colType.getBaseType());
         }
 
         return dataSize;
     }
-    
+
     /** Returns an objects size on disk. */
     public static int getObjectDiskSize(Object value, ColumnType colType) {
-    	if (colType == null)
+        if (colType == null)
             throw new NullPointerException("colType cannot be null");
 
         if (value == null)
@@ -1083,79 +1002,67 @@ public class DBPage {
 
         int dataSize;
 
-        // This code relies on Java autoboxing.  Go, syntactic sugar.
+        // This code relies on Java autoboxing. Go, syntactic sugar.
         switch (colType.getBaseType()) {
 
-        case INTEGER:
-            {
+            case INTEGER: {
                 dataSize = 4;
                 break;
             }
 
-        case SMALLINT:
-            {
+            case SMALLINT: {
                 dataSize = 2;
                 break;
             }
 
-        case BIGINT:
-            {
+            case BIGINT: {
                 dataSize = 8;
                 break;
             }
 
-        case TINYINT:
-            {
+            case TINYINT: {
                 dataSize = 1;
                 break;
             }
 
-        case FLOAT:
-            {
+            case FLOAT: {
                 dataSize = 4;
                 break;
             }
 
-        case DOUBLE:
-            {
+            case DOUBLE: {
                 dataSize = 8;
                 break;
             }
 
-        case CHAR:
-            {
+            case CHAR: {
                 dataSize = colType.getLength();
                 break;
             }
 
-        case VARCHAR:
-            {
+            case VARCHAR: {
                 String strVal = TypeConverter.getStringValue(value);
                 dataSize = 2 + strVal.length();
                 break;
             }
 
-        case FILE_POINTER:
-            {
+            case FILE_POINTER: {
                 dataSize = 4;
                 break;
             }
 
-        default:
-            throw new UnsupportedOperationException(
-                "Cannot currently store type " + colType.getBaseType());
+            default:
+                throw new UnsupportedOperationException("Cannot currently store type " + colType.getBaseType());
         }
 
         return dataSize;
     }
 
-
     public String toFormattedString() {
         StringBuilder buf = new StringBuilder();
 
         int pageSize = dbFile.getPageSize();
-        buf.append(String.format("DBPage[file=%s, pageNo=%d, pageSize=%d",
-            dbFile, pageNo, pageSize));
+        buf.append(String.format("DBPage[file=%s, pageNo=%d, pageSize=%d", dbFile, pageNo, pageSize));
 
         buf.append("\npageData =");
         for (int i = 0; i < pageSize; i++) {
