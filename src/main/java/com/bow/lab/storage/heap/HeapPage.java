@@ -7,6 +7,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ * <pre>
+ * |  2 B   |  2 B  |  2 B  |...
+ * |numSlots|slotVal|slotVal|...
+ * .............
+ * |nullFlag|tuple col1|tuple col2|
+ * </pre>
+ * slotVal中存放每个tuple的偏移量
  * @author vv
  * @since 2017/11/21.
  */
@@ -24,6 +31,10 @@ public class HeapPage implements IPage {
         this.dbPage = dbPage;
     }
 
+    /**
+     * 获取总slot 数量
+     * @return 总slot数量
+     */
     public int getNumSlots() {
         return dbPage.readUnsignedShort(OFFSET_NUM_SLOTS);
     }
@@ -32,10 +43,12 @@ public class HeapPage implements IPage {
         dbPage.writeShort(OFFSET_NUM_SLOTS, numSlots);
     }
 
-    public int getSlotsEndIndex() {
-        return getSlotOffset(getNumSlots());
-    }
 
+    /**
+     * 获取指定slot的值，即tuple的起始偏移位置或是{@link #EMPTY_SLOT}
+     * @param slot slot
+     * @return 对应tuple的偏移量
+     */
     public int getSlotValue(int slot) {
         int numSlots = getNumSlots();
         if (slot < 0 || slot >= numSlots) {
@@ -46,87 +59,102 @@ public class HeapPage implements IPage {
 
     /**
      * 将值（各个tuple的offset）放到slot中，
-     * 
-     * @param slot
-     * @param value
+     * @param slot slot
+     * @param value tuple的偏移量
      */
     public void setSlotValue(int slot, int value) {
         int numSlots = getNumSlots();
-
         if (slot < 0 || slot >= numSlots) {
             throw new IllegalArgumentException("Valid slots are in range [0," + numSlots + ").  Got " + slot);
         }
-
         dbPage.writeShort(getSlotOffset(slot), value);
     }
 
-    public int getSlotIndexFromOffset(int offset) throws IllegalArgumentException {
+    /**
+     * 获取slot list结束的位置
+     * @return slot区域结束的位置
+     */
+    public int getSlotsEndIndex() {
+        return getSlotOffset(getNumSlots());
+    }
 
+    /**
+     * 将offset转换为slot
+     * @param offset
+     * @return
+     * @throws IllegalArgumentException
+     */
+    public int getSlotIndexFromOffset(int offset) throws IllegalArgumentException {
         if (offset % 2 != 0) {
             throw new IllegalArgumentException("Slots occur at even indexes (each slot is a short).");
         }
-
         int slot = (offset - 2) / 2;
         int numSlots = getNumSlots();
-
         if (slot < 0 || slot >= numSlots) {
             throw new IllegalArgumentException("Valid slots are in range [0," + numSlots + ").  Got " + slot);
         }
-
         return slot;
     }
 
+    /**
+     * 获取tuple数据的起始位置。slot list中最后一个slot存放的是第一个的tuple的位置即tuple数据区域的起始位置。
+     * @return 起始位置
+     */
     public int getTupleDataStart() {
         int numSlots = getNumSlots();
-
         // If there are no tuples in this page, "data start" is the top of the
         // page data.
         int dataStart = getTupleDataEnd();
-
         int slot = numSlots - 1;
         while (slot >= 0) {
+            //获取最后一个slot中存放的tuple偏移量
             int slotValue = getSlotValue(slot);
             if (slotValue != EMPTY_SLOT) {
+                // 只要对应的tuple没有被删除，此值就是首个tuple的起始位置
                 dataStart = slotValue;
                 break;
             }
-
             --slot;
         }
-
         return dataStart;
     }
 
+    /**
+     * tuple数据的结束位置
+     * @return 结束位置
+     */
     public int getTupleDataEnd() {
         return dbPage.getPageSize();
     }
 
+    /**
+     * 获取指定tuple的长度.
+     * slot list中最后一个slot存放的是首个tuple的offset
+     * @param slot 指定某个tuple
+     * @return tuple长度
+     */
     @Override
     public int getTupleLength(int slot) {
         int numSlots = getNumSlots();
-
         if (slot < 0 || slot >= numSlots) {
             throw new IllegalArgumentException("Valid slots are in range [0," + slot + ").  Got " + slot);
         }
 
         int tupleStart = getSlotValue(slot);
-
-        if (tupleStart == EMPTY_SLOT)
+        if (tupleStart == EMPTY_SLOT){
+            // 被删除了
             throw new IllegalArgumentException("Slot " + slot + " is empty.");
+        }
 
         int tupleLength = -1;
-
         int prevSlot = slot - 1;
         while (prevSlot >= 0) {
             int prevTupleStart = getSlotValue(prevSlot);
             if (prevTupleStart != EMPTY_SLOT) {
-
                 // Earlier slots have higher offsets. (Yes it's weird.)
                 tupleLength = prevTupleStart - tupleStart;
-
                 break;
             }
-
             prevSlot--;
         }
 
@@ -138,16 +166,24 @@ public class HeapPage implements IPage {
         return tupleLength;
     }
 
+    /**
+     * 获取剩余空间
+     * @return 剩余空间
+     */
     @Override
     public int getFreeSpaceInPage() {
         return getTupleDataStart() - getSlotsEndIndex();
     }
 
+    /**
+     * 合理性检查
+     */
     @Override
     public void sanityCheck() {
         int numSlots = getNumSlots();
-        if (numSlots == 0)
+        if (numSlots == 0){
             return;
+        }
 
         // Find the first occupied slot, and get its offset into prevOffset.
         int iSlot = -1;
@@ -171,9 +207,8 @@ public class HeapPage implements IPage {
             if (iSlot < numSlots) {
                 // Tuple offsets should be strictly decreasing.
                 if (prevOffset <= offset) {
-                    logger.warn(String.format(
-                            "Slot %d and %d offsets are not strictly decreasing " + "(%d should be greater than %d)",
-                            prevSlot, iSlot, prevOffset, offset));
+                    logger.warn("Slot {} and {} offsets are not strictly decreasing ({} should be greater than {})",
+                            prevSlot, iSlot, prevOffset, offset);
                 }
 
                 prevSlot = iSlot;
@@ -192,9 +227,9 @@ public class HeapPage implements IPage {
                     "Specified offset " + off + " is not actually in the tuple data portion of this page "
                             + "(data starts at offset " + tupDataStart + ").");
         }
-
-        if (len < 0)
+        if (len < 0){
             throw new IllegalArgumentException("Length must not be negative.");
+        }
 
         if (len > getFreeSpaceInPage()) {
             throw new IllegalArgumentException("Specified length " + len
@@ -304,15 +339,14 @@ public class HeapPage implements IPage {
             // currSlotValue is either the start of that slot's tuple-data,
             // or it is set to EMPTY_SLOT.
             int currSlotValue = getSlotValue(slot);
-
-            if (currSlotValue == EMPTY_SLOT)
+            if (currSlotValue == EMPTY_SLOT) {
                 break;
-            else
+            } else {
                 newTupleEnd = currSlotValue;
+            }
         }
 
-        // First make sure we actually have enough space for the new tuple.
-
+        // 确保空间足够
         if (slot == numSlots) {
             // We'll need to add a new slot to the list. Make sure there's
             // room.
@@ -320,10 +354,6 @@ public class HeapPage implements IPage {
         }
 
         if (spaceNeeded > getFreeSpaceInPage()) {
-            // Switch this to a checked exception? The table manager has
-            // already verified that the page should have enough space, so if
-            // this fails, it would indicate a bug. So, runtime exception is
-            // fine for now.
             throw new IllegalArgumentException("Space needed for new tuple (" + spaceNeeded
                     + " bytes) is larger than the free space in this page (" + getFreeSpaceInPage() + " bytes).");
         }
@@ -345,8 +375,8 @@ public class HeapPage implements IPage {
 
         int newTupleStart = newTupleEnd - len;
 
-        logger.debug(String.format("New tuple of %d bytes will reside at location [%d, %d).", len, newTupleStart,
-                newTupleEnd));
+        logger.debug("New tuple of {} bytes will reside at location [{}, {}).", len, newTupleStart,
+                newTupleEnd);
 
         // Make room for the new tuple's data to be stored into. Since
         // tuples are stored from the END of the page going backwards, we
@@ -382,17 +412,16 @@ public class HeapPage implements IPage {
         // Get the tuple's offset and length.
         int tupleStart = getSlotValue(slot);
         if (tupleStart == EMPTY_SLOT) {
+            //已经被删除了，抛出异常
             throw new IllegalArgumentException(
                     "Slot " + slot + " was requested for deletion, but it is already deleted.");
         }
 
         int tupleLength = getTupleLength(slot);
 
-        // Mark the slot's entry as empty, and clear out the tuple's space.
-
-        logger.debug(String.format("Deleting tuple page %d, slot %d with starting offset %d, length %d.",
-                dbPage.getPageNo(), slot, tupleStart, tupleLength));
-
+        // 删除对应数据并将slot标记为EMPTY_SLOT
+        logger.debug("Deleting tuple page {}, slot {} with starting offset {}, length {}.",
+                dbPage.getPageNo(), slot, tupleStart, tupleLength);
         deleteTupleDataRange(tupleStart, tupleLength);
         setSlotValue(slot, EMPTY_SLOT);
 
@@ -411,8 +440,10 @@ public class HeapPage implements IPage {
             numSlotsChanged = true;
         }
 
-        if (numSlotsChanged)
+        if (numSlotsChanged){
             setNumSlots(numSlots);
+        }
+
     }
 
     public static int getSlotOffset(int slot) {
