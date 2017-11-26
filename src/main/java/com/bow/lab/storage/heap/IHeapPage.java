@@ -4,7 +4,7 @@ package com.bow.lab.storage;
  * @author vv
  * @since 2017/11/21.
  */
-public interface IPage {
+public interface IHeapPage {
 
     int getFreeSpaceInPage();
 
