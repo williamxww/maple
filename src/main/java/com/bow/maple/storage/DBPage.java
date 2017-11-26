@@ -25,8 +25,8 @@ import org.slf4j.LoggerFactory;
  * stored at the highest index. (This is also the network byte order specified
  * by the Internet Protocol.)
  *
- * @see PageReader
- * @see PageWriter
+ * @see PageReader PageReader
+ * @see PageWriter PageWriter
  *
  * @design (Donnie) It is very important that the page is marked dirty
  *         <em>before</em> any changes are made, because this is the point when
@@ -39,110 +39,78 @@ public class DBPage {
 
     private static Logger logger = LoggerFactory.getLogger(DBPage.class);
 
-    /** A reference to the database file that this page is from. */
     private DBFile dbFile;
 
     /**
-     * The page number in the table file. A value of 0 is the first page in the
-     * file.
+     * table file中的pageNo,第一页的pageNo为0
      */
     private int pageNo;
 
     /**
-     * The pin-count of this page. When nonzero, the page is not allowed to be
-     * flushed from the buffer manager since the page is being used by at least
-     * one session.
+     * 此页被定的次数。此值大于0，则此页不能被从缓存中刷出，因为至少一个session在使用。
      */
     private int pinCount;
 
-    /** This flag is true if this page has been modified in memory. */
+    /**
+     * true表示此页在内存中被修改过
+     */
     private boolean dirty;
 
     /**
-     * For dirty pages, this field is set to the Log Sequence Number of the
-     * write-ahead log record corresponding to the most recent write to the
-     * page. When the page is being flushed back to disk, the write-ahead log
-     * must be written to at least this point, or else the write-ahead logging
-     * rule will be violated.
+     * 脏页中pageLSN存储最近修改数据的LSN。在此页被刷出之前，其对应的write-ahead log必须被写入，否则write-ahead
+     * logging rule被违反。
      */
     private LogSequenceNumber pageLSN;
 
-    /** The actual data for the table-page. */
+    /**
+     * 此页的真实数据
+     */
     private byte[] pageData;
 
     /**
-     * When the page is marked dirty, this gets set to the original version of
-     * the page, so that we can properly record changes to the write-ahead log.
+     * 在修改数据前将数据备份于此，方便把数据更新记录到WAL日志。
      */
     private byte[] oldPageData;
 
     /**
-     * Constructs a new, empty table-page for the specified table file. Note
-     * that the page data is not loaded into the object; that must be done in a
-     * separate step.
-     *
-     * @param dbFile The database file that this page is contained within.
-     *
-     * @param pageNo The page number within the database file.
-     *
-     * @throws NullPointerException if <tt>dbFile</tt> is <tt>null</tt>
-     * 
-     * @throws IllegalArgumentException if <tt>pageNo</tt> is negative
+     * 创建一个新的数据页。注意此时没有加载数据。
+     * @param dbFile 包含此页的文件
+     * @param pageNo 页号
      */
     public DBPage(DBFile dbFile, int pageNo) {
-        if (dbFile == null)
+        if (dbFile == null){
             throw new NullPointerException("dbFile must not be null");
-
+        }
         if (pageNo < 0) {
             throw new IllegalArgumentException("pageNo must be >= 0 (got " + pageNo + ")");
         }
-
         this.dbFile = dbFile;
         this.pageNo = pageNo;
         pinCount = 0;
         dirty = false;
         pageLSN = null;
-
         // Allocate the space for the page data.
         pageData = new byte[dbFile.getPageSize()];
         oldPageData = null;
     }
 
-    /**
-     * Returns the database file that this page is contained within.
-     *
-     * @return the database file that this page is contained within.
-     */
     public DBFile getDBFile() {
         return dbFile;
     }
 
     /**
-     * Returns true if this page is from the specified database file. This
-     * function simply uses {@link DBFile#equals} for the comparison.
-     *
-     * @param databaseFile the database file to examine this page for membership
-     *
-     * @return true if the specified database file is the same as this DB file.
+     * 此页是否是databaseFile中的数据页
+     * @param databaseFile 数据文件
+     * @return true表示出自数据文件databaseFile
      */
     public boolean isFromDBFile(DBFile databaseFile) {
         return dbFile.equals(databaseFile);
     }
 
-    /**
-     * Returns the page-number of this database page.
-     *
-     * @return the page-number of this database page
-     */
     public int getPageNo() {
         return pageNo;
     }
 
-    /**
-     * Returns the page size in bytes.
-     *
-     * @return the page-size in bytes
-     */
     public int getPageSize() {
         return pageData.length;
     }
@@ -155,7 +123,6 @@ public class DBPage {
         if (pinCount <= 0) {
             throw new IllegalStateException("pinCount is not positive (value is " + pinCount + ")");
         }
-
         pinCount--;
     }
 
@@ -167,13 +134,6 @@ public class DBPage {
         return (pinCount > 0);
     }
 
-    /**
-     * Returns the byte-array of the page's data. <b>Note that if any changes
-     * are made to the page's data, the dirty-flag must be updated appropriately
-     * or else the data will not be written back to the file.</b>
-     *
-     * @return a byte-array containing the page's data
-     */
     public byte[] getPageData() {
         return pageData;
     }
@@ -193,43 +153,33 @@ public class DBPage {
      * 将新数据放到oldPageData里面去
      */
     public void syncOldPageData() {
-        if (oldPageData == null)
+        if (oldPageData == null){
             throw new IllegalStateException("No old page data to sync");
-
+        }
         System.arraycopy(pageData, 0, oldPageData, 0, pageData.length);
     }
 
     /**
-     * Returns true if the page's data has been changed in memory; false
-     * otherwise.
-     *
-     * @return true if the page's data has been changed in memory
+     * 是否被修改
+     * @return true 表示此页被修改过
      */
     public boolean isDirty() {
         return dirty;
     }
 
     /**
-     * Sets the dirty flag to true or false, indicating whether the page's data
-     * has or has not been changed in memory.
-     *
-     * @param dirty the dirty flag; true if the page's data is dirty, or false
-     *        otherwise
+     * 将此页设置为dirty，表明被修改过。
+     * @param dirty 是脏页
      */
     public void setDirty(boolean dirty) {
         if (!this.dirty && dirty) {
-            // Page is being changed from clean to dirty. Duplicate the current
-            // data so that we have it when updating the write-ahead log.
+            // 以前是clean,本次要修改为dirty
             oldPageData = pageData.clone();
         } else if (this.dirty && !dirty) {
-            // Page is being changed from dirty to clean. Clear out the old
-            // page data since we don't need it anymore.
+            // 以前是dirty,本次要修改为clean
             oldPageData = null;
-
-            // Clear out the page-LSN value as well.
             pageLSN = null;
         }
-
         this.dirty = dirty;
     }
 
@@ -242,10 +192,7 @@ public class DBPage {
     }
 
     /**
-     * This method makes the {@code DBPage} invalid by clearing all of its
-     * internal references. It is used by the Buffer Manager when a page is
-     * removed from the cache so that no other database code will continue to
-     * try to use the page.
+     * 注销此页，清除其内部所有引用。此方法会被Buffer Manager从缓存中移除此页时使用。
      */
     public void invalidate() {
         dbFile = null;
