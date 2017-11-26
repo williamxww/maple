@@ -1,6 +1,5 @@
 package com.bow.lab.storage.heap;
 
-import com.bow.lab.storage.IPage;
 import com.bow.maple.storage.DBPage;
 import com.bow.maple.storage.heapfile.DataPage;
 import org.slf4j.Logger;
@@ -21,7 +20,7 @@ import org.slf4j.LoggerFactory;
  * @author vv
  * @since 2017/11/21.
  */
-public class HeapPage implements IPage {
+public class HeapPage implements IHeapPage {
 
     private static Logger logger = LoggerFactory.getLogger(DataPage.class);
 

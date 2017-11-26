@@ -1,4 +1,4 @@
-package com.bow.lab.storage;
+package com.bow.lab.storage.heap;
 
 /**
  * @author vv
