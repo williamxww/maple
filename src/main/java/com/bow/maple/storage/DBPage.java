@@ -206,16 +206,11 @@ public class DBPage {
     /* ============================= */
 
     /**
-     * Read a sequence of bytes into the provided byte-array, starting with the
-     * specified offset, and reading the specified number of bytes.
-     *
-     * @param position the starting index within the page to start reading data
-     *
-     * @param b the destination buffer to save the data into
-     *
-     * @param off the starting offset to save data to in the destination buffer
-     *
-     * @param len the number of bytes to transfer to the destination buffer
+     * 从pageData中的position开始读取len字节放入b中
+     * @param position 从pageData的position开始读取
+     * @param b 读入的目标数组
+     * @param off 目标数组的偏移量
+     * @param len 读入数据的长度
      */
     public void read(int position, byte[] b, int off, int len) {
         System.arraycopy(pageData, position, b, off, len);

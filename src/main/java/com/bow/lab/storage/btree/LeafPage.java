@@ -168,6 +168,7 @@ public class LeafPage {
 
     /**
      * 获取下一页的pageNo,如果是最后一页了就返回0
+     * 
      * @return 获取下一页的pageNo
      */
     public int getNextPageNo() {
@@ -195,6 +196,7 @@ public class LeafPage {
 
     /**
      * 剩余空间(in byte)
+     * 
      * @return 剩余空间.
      */
     public int getFreeSpace() {
@@ -214,9 +216,7 @@ public class LeafPage {
 
     /**
      * Returns the size of the key at the specified index, in bytes.
-     *
      * @param index the index of the key to get the size of
-     *
      * @return the size of the specified key, in bytes
      */
     public int getKeySize(int index) {
@@ -287,14 +287,9 @@ public class LeafPage {
     }
 
     /**
-     * This private helper takes care of inserting an entry at a specific index
-     * in the leaf page. This method should be called with care, so as to ensure
-     * that keys always remain in monotonically increasing order.
-     *
+     * 将newKey插入到指定位置index
      * @param newKey the new key to insert into the leaf page
-     * @param index the index to insert the key at. Any existing keys at or
-     *        after this index will be shifted over to make room for the new
-     *        key.
+     * @param index 第index个tuple处。
      */
     private void addEntryAtIndex(TupleLiteral newKey, int index) {
         logger.debug("Leaf-page is starting with data ending at index " + endOffset + ", and has " + numEntries
@@ -307,70 +302,43 @@ public class LeafPage {
             throw new IllegalArgumentException(
                     "New key's storage size must " + "be computed before this method is called.");
         }
-
         logger.debug("New key's storage size is " + len + " bytes");
-
         int keyOffset;
         if (index < numEntries) {
-            // Need to slide keys after this index over, in order to make space.
-
+            //找到Index对应的key并开辟足够的空间
             BTreeIndexPageTuple key = getKey(index);
-
-            // Make space for the new key/pointer to be stored, then copy in
-            // the new values.
-
             keyOffset = key.getOffset();
-
             logger.debug(
                     "Moving leaf-page data in range [" + keyOffset + ", " + endOffset + ") over by " + len + " bytes");
-
             dbPage.moveDataRange(keyOffset, keyOffset + len, endOffset - keyOffset);
         } else {
-            // The new key falls at the end of the data in the leaf index page.
+            // The new key falls at the end of the data in the page.
             keyOffset = endOffset;
             logger.debug("New key is at end of leaf-page data; not moving anything.");
         }
-
         // Write the key and its associated file-pointer value into the page.
         PageTuple.storeTuple(dbPage, keyOffset, colInfos, newKey);
-
-        // Increment the total number of entries.
         dbPage.writeShort(OFFSET_NUM_ENTRIES, numEntries + 1);
-
         // Reload the page contents now that we have a new key in the mix.
-        // TODO: We could do this more efficiently, but this should be
-        // sufficient for now.
         loadPageContents();
-
         logger.debug("Wrote new key to leaf-page at offset " + keyOffset + ".");
         logger.debug(
                 "Leaf-page is ending with data ending at index " + endOffset + ", and has " + numEntries + " entries.");
     }
 
     /**
-     * This helper function moves the specified number of entries to the left
-     * sibling of this leaf node. The data is copied in one shot so that the
-     * transfer will be fast, and the various associated bookkeeping values in
-     * both leaves are updated.
-     *
+     * 将此页的前count个entry移动到左页
      * @param leftSibling the left sibling of this leaf-node in the index file
-     *
-     * @param count the number of entries (i.e. keys) to move to the left
-     *        sibling
+     * @param count 前count个entry
      */
     public void moveEntriesLeft(LeafPage leftSibling, int count) {
         if (leftSibling == null)
             throw new IllegalArgumentException("leftSibling cannot be null");
 
         if (leftSibling.getNextPageNo() != getPageNo()) {
-            logger.error(
-                    String.format("Left sibling leaf %d says that page " + "%d is its right sibling, not this page %d",
-                            leftSibling.getPageNo(), leftSibling.getNextPageNo(), getPageNo()));
-
             throw new IllegalArgumentException("leftSibling " + leftSibling.getPageNo() + " isn't actually the left "
                     + "sibling of this leaf-node " + getPageNo());
         }
-
         if (count < 0 || count > numEntries) {
             throw new IllegalArgumentException("count must be in range [0, " + numEntries + "), got " + count);
         }
@@ -378,25 +346,18 @@ public class LeafPage {
         int moveEndOffset = getKey(count).getOffset();
         int len = moveEndOffset - OFFSET_FIRST_KEY;
 
-        // Copy the range of key-data to the destination page. Then update the
-        // count of entries in the destination page.
-        // Don't need to move any data in the left sibling; we are appending!
-        leftSibling.dbPage.write(leftSibling.endOffset, dbPage.getPageData(), OFFSET_FIRST_KEY, len); // Copy
-                                                                                                      // the
-                                                                                                      // key-data
-                                                                                                      // across
-        leftSibling.dbPage.writeShort(OFFSET_NUM_ENTRIES, leftSibling.numEntries + count); // Update
-                                                                                           // the
-                                                                                           // entry-count
+        //将本页的len字节数据复制到左边的叶子的后面，然后更新左页的总entry数量
+        leftSibling.dbPage.write(leftSibling.endOffset, dbPage.getPageData(), OFFSET_FIRST_KEY, len);
+        leftSibling.dbPage.writeShort(OFFSET_NUM_ENTRIES, leftSibling.numEntries + count);
 
-        // Remove that range of key-data from this page.
+        // 本页释放已移走数据的空间（把后面的数据移动到前面）
         dbPage.moveDataRange(moveEndOffset, OFFSET_FIRST_KEY, endOffset - moveEndOffset);
         dbPage.writeShort(OFFSET_NUM_ENTRIES, numEntries - count);
 
-        // Only erase the old data in the leaf page if we are trying to make
-        // sure everything works properly.
-        if (BTreeIndexManager.CLEAR_OLD_DATA)
+        if (BTreeIndexManager.CLEAR_OLD_DATA){
+            //后面数据置为0
             dbPage.setDataRange(endOffset - len, len, (byte) 0);
+        }
 
         // Update the cached info for both leaves.
         loadPageContents();
@@ -404,25 +365,18 @@ public class LeafPage {
     }
 
     /**
-     * This helper function moves the specified number of entries to the right
-     * sibling of this leaf node. The data is copied in one shot so that the
-     * transfer will be fast, and the various associated bookkeeping values in
-     * both leaves are updated.
-     *
+     * 把本页后count个entry移动到右页
      * @param rightSibling the right sibling of this leaf-node in the index file
-     *
-     * @param count the number of entries (i.e. keys) to move to the right
-     *        sibling
+     * @param count 后count个entry
      */
     public void moveEntriesRight(LeafPage rightSibling, int count) {
-        if (rightSibling == null)
+        if (rightSibling == null){
             throw new IllegalArgumentException("rightSibling cannot be null");
-
+        }
         if (getNextPageNo() != rightSibling.getPageNo()) {
             throw new IllegalArgumentException("rightSibling " + rightSibling.getPageNo() + " isn't actually the right "
                     + "sibling of this leaf-node " + getPageNo());
         }
-
         if (count < 0 || count > numEntries) {
             throw new IllegalArgumentException("count must be in range [0, " + numEntries + "), got " + count);
         }
@@ -430,28 +384,20 @@ public class LeafPage {
         int startOffset = getKey(numEntries - count).getOffset();
         int len = endOffset - startOffset;
 
-        // Copy the range of key-data to the destination page. Then update the
-        // count of entries in the destination page.
-
-        // Make room for the data
+        // 右页腾出空间
         rightSibling.dbPage.moveDataRange(OFFSET_FIRST_KEY, OFFSET_FIRST_KEY + len,
                 rightSibling.endOffset - OFFSET_FIRST_KEY);
-
-        // Copy the key-data across
+        // 把左页的数据copy过来
         rightSibling.dbPage.write(OFFSET_FIRST_KEY, dbPage.getPageData(), startOffset, len);
-
-        // Update the entry-count
+        // 更新右页的entry-count
         rightSibling.dbPage.writeShort(OFFSET_NUM_ENTRIES, rightSibling.numEntries + count);
 
-        // Remove that range of key-data from this page.
         dbPage.writeShort(OFFSET_NUM_ENTRIES, numEntries - count);
-
-        // Only erase the old data in the leaf page if we are trying to make
-        // sure everything works properly.
-        if (BTreeIndexManager.CLEAR_OLD_DATA)
+        // 移除本页的相关数据
+        if (BTreeIndexManager.CLEAR_OLD_DATA){
             dbPage.setDataRange(startOffset, len, (byte) 0);
-
-        // Update the cached info for both leaves.
+        }
+        //重新加载数据
         loadPageContents();
         rightSibling.loadPageContents();
     }

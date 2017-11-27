@@ -115,7 +115,14 @@ edu.caltech.nanodb.storage.heapfile.HeapFilePageTuple#storeNewTuple
 |nullFlag|tuple col1|tuple col2|
 ```
 
+#### LeafPage
 
+
+
+```
+|   1B   |    2B    |    2B    |
+|pageType|nextPageNo|numEntries|tuple|
+```
 
 
 
