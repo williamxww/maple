@@ -256,8 +256,6 @@ public class LeafPage {
             int i;
             for (i = 0; i < numEntries; i++) {
                 BTreeIndexPageTuple key = keys.get(i);
-
-                /* This gets REALLY verbose... */
                 logger.trace(i + ":  comparing " + newKey + " to " + key);
 
                 // Compare the tuple to the current key. Once we find where the
