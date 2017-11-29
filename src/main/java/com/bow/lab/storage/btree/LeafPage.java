@@ -11,8 +11,6 @@ import com.bow.maple.storage.DBPage;
 import com.bow.maple.storage.PageTuple;
 import com.bow.maple.storage.btreeindex.BTreeIndexManager;
 import com.bow.maple.storage.btreeindex.BTreeIndexPageTuple;
-import com.bow.maple.storage.btreeindex.InnerPage;
-import com.bow.maple.storage.btreeindex.InnerPageOperations;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,12 +42,12 @@ public class LeafPage {
     public static final int OFFSET_NEXT_PAGE_NO = 1;
 
     /**
-     * The offset where the number of key+pointer entries is stored in the page.
+     * key+pointer entries的总数
      */
     public static final int OFFSET_NUM_ENTRIES = 3;
 
     /**
-     * The offset of the first key in the leaf page.
+     * entry的起始位置
      */
     public static final int OFFSET_FIRST_KEY = 5;
 

@@ -9,12 +9,8 @@ import com.bow.maple.expressions.TupleLiteral;
 import com.bow.maple.indexes.IndexFileInfo;
 import com.bow.maple.storage.DBFile;
 import com.bow.maple.storage.DBPage;
-import com.bow.maple.storage.StorageManager;
-import com.bow.maple.storage.btreeindex.BTreeIndexManager;
 import com.bow.maple.storage.btreeindex.BTreeIndexPageTuple;
 import com.bow.maple.storage.btreeindex.HeaderPage;
-import com.bow.maple.storage.btreeindex.InnerPage;
-import com.bow.maple.storage.btreeindex.InnerPageOperations;
 import com.bow.maple.util.ExtensionLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,11 +27,11 @@ public class LeafPageOperations {
 
     private IStorageService storageManager = ExtensionLoader.getExtensionLoader(IStorageService.class).getExtension();
 
-    private BTreeIndexManager bTreeManager;
+    private BTreeIndexService bTreeManager;
 
     private InnerPageOperations innerPageOps;
 
-    public LeafPageOperations(BTreeIndexManager bTreeManager, InnerPageOperations innerPageOps) {
+    public LeafPageOperations(BTreeIndexService bTreeManager, InnerPageOperations innerPageOps) {
         this.bTreeManager = bTreeManager;
         this.innerPageOps = innerPageOps;
     }
@@ -112,8 +108,9 @@ public class LeafPageOperations {
         }
 
         int parentPageNo = 0;
-        if (pathSize >= 2)
+        if (pathSize >= 2){
             parentPageNo = pagePath.get(pathSize - 2);
+        }
 
         InnerPage parentPage = innerPageOps.loadPage(idxFileInfo, parentPageNo);
         int numPointers = parentPage.getNumPointers();
@@ -138,7 +135,7 @@ public class LeafPageOperations {
                 if (count > 0) {
                     // Yes, we can do it!
 
-                    logger.debug("Relocating %d entries from " + "leaf-page %d to left-sibling leaf-page %d", count,
+                    logger.debug("Relocating {} entries from leaf-page {} to left-sibling leaf-page {}", count,
                             page.getPageNo(), prevPage.getPageNo());
 
                     logger.debug("Space before relocation:  Leaf = " + page.getFreeSpace() + " bytes\t\tSibling = "
@@ -234,21 +231,18 @@ public class LeafPageOperations {
      * bytes. If it is possible, the number of entries that must be relocated is
      * returned. If it is not possible, the method returns 0.
      *
+     * leaf需要腾出bytesRequired空间，因此将此页的部分key转移到相邻页上。
+     *
      * @param leaf the leaf node to relocate entries from
-     *
-     * @param adjLeaf the adjacent leaf (predecessor or successor) to relocate
-     *        entries to
-     *
+     * @param adjLeaf 相邻页，本页的部分key会转移到相邻页
      * @param movingRight pass {@code true} if the sibling is to the right of
      *        {@code page} (and therefore we are moving entries right), or
      *        {@code false} if the sibling is to the left of {@code page} (and
      *        therefore we are moving entries left).
      *
-     * @param bytesRequired the number of bytes that must be freed up in
-     *        {@code leaf} by the operation
+     * @param bytesRequired leaf需要腾出空间大小
      *
-     * @return the number of entries that must be relocated to free up the
-     *         required space, or 0 if it is not possible.
+     * @return leaf为释放空间所需要移动的entry数量
      */
     private int tryLeafRelocateForSpace(LeafPage leaf, LeafPage adjLeaf, boolean movingRight, int bytesRequired) {
 
@@ -256,7 +250,7 @@ public class LeafPageOperations {
         int leafBytesFree = leaf.getFreeSpace();
         int adjBytesFree = adjLeaf.getFreeSpace();
 
-        logger.debug("Leaf bytes free:  " + leafBytesFree + "\t\tAdjacent leaf bytes free:  " + adjBytesFree);
+        logger.debug("Leaf bytes free:  " + leafBytesFree + " Adjacent leaf bytes free:  " + adjBytesFree);
 
         // Subtract the bytes-required from the adjacent-bytes-free value so
         // that we ensure we always have room to put the key in either node.
@@ -264,37 +258,32 @@ public class LeafPageOperations {
 
         int numRelocated = 0;
         while (true) {
-            // Figure out the index of the key we need the size of, based on the
-            // direction we are moving values. If we are moving values right,
-            // we need to look at the keys starting at the rightmost one. If we
-            // are moving values left, we need to start with the leftmost key.
             int index;
-            if (movingRight)
+            if (movingRight){
+                //若朝右页移动，则从最后的一个key开始，找到一片连续空间(>=bytesRequired)
                 index = numKeys - numRelocated - 1;
-            else
+            } else{
+                //朝左，则从最左边的key开始找
                 index = numRelocated;
-
+            }
             int keySize = leaf.getKeySize(index);
-
             logger.debug("Key " + index + " is " + keySize + " bytes");
-
-            if (adjBytesFree < keySize)
+            if (adjBytesFree < keySize){
+                //前一页的空闲空间不够了
                 break;
+            }
 
             numRelocated++;
-
+            //将此页的key移到相邻页后free就增加了，相邻页空余空间就减少了
             leafBytesFree += keySize;
             adjBytesFree -= keySize;
 
-            // Since we don't yet know which leaf the new key will go into,
-            // stop when we can put the key in either leaf.
+            // 因为不知道new key会加到本页还是相邻页，因此只要一个空间足够即可
             if (leafBytesFree >= bytesRequired && adjBytesFree >= bytesRequired) {
                 break;
             }
         }
-
         logger.debug("Can relocate " + numRelocated + " keys to free up space.");
-
         return numRelocated;
     }
 
