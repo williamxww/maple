@@ -37,10 +37,7 @@ public class LeafPageOperations {
     }
 
     /**
-     * This helper function provides the simple operation of loading a leaf page
-     * from its page-number, or if the page-number is 0 then {@code null} is
-     * returned.
-     *
+     * 加在叶子页，pageNo如果为0则返回Null
      * @param idxFileInfo 记录了leaf-page的index文件信息.
      * @param pageNo 要加载的leaf-page的pageNo.
      * @return 一个初始化的{@link LeafPage}
@@ -89,114 +86,126 @@ public class LeafPageOperations {
         }
     }
 
-    private boolean relocateEntriesAndAddKey(LeafPage page, List<Integer> pagePath, TupleLiteral key)
-            throws IOException {
-
-        // See if we are able to relocate records either direction to free up
-        // space for the new key.
-
-        int bytesRequired = key.getStorageSize();
-
-        IndexFileInfo idxFileInfo = page.getIndexFileInfo();
-
+    private boolean tryMoveLeft(LeafPage page, List<Integer> pagePath, TupleLiteral key) throws IOException {
         int pathSize = pagePath.size();
-        if (pathSize == 1) // This node is also the root - no parent.
-            return false; // There aren't any siblings to relocate to.
-
-        if (pagePath.get(pathSize - 1) != page.getPageNo()) {
-            throw new IllegalArgumentException("leaf page number doesn't match last page-number in page path");
-        }
-
         int parentPageNo = 0;
         if (pathSize >= 2){
             parentPageNo = pagePath.get(pathSize - 2);
         }
 
+        int bytesRequired = key.getStorageSize();
+        IndexFileInfo idxFileInfo = page.getIndexFileInfo();
+        InnerPage parentPage = innerPageOps.loadPage(idxFileInfo, parentPageNo);
+        int pagePtrIndex = parentPage.getIndexOfPointer(page.getPageNo());
+
+        //获取从parentPage获取前一页
+        LeafPage prevPage = null;
+        if (pagePtrIndex - 1 >= 0) {
+            prevPage = loadLeafPage(idxFileInfo, parentPage.getPointer(pagePtrIndex - 1));
+        }
+
+        if (prevPage != null) {
+            // 尝试将page上的内容往左页移动，希望能获取bytesRequired空间
+            int count = tryLeafRelocateForSpace(page, prevPage, false, bytesRequired);
+
+            if (count > 0) {
+                // > 0表明移动count个entry就可以腾出空间
+                logger.debug("Relocating {} entries from leaf-page {} to left-sibling leaf-page {}", count,
+                        page.getPageNo(), prevPage.getPageNo());
+                logger.debug("Space before relocation:  Leaf = " + page.getFreeSpace() + " bytes\t\tSibling = "
+                        + prevPage.getFreeSpace() + " bytes");
+                //往左叶上移动count个entry
+                page.moveEntriesLeft(prevPage, count);
+                logger.debug("Space after relocation:  Leaf = " + page.getFreeSpace() + " bytes\t\tSibling = "
+                        + prevPage.getFreeSpace() + " bytes");
+
+                //将key放到prevPage或是page中
+                BTreeIndexPageTuple firstRightKey = addEntryToLeafPair(prevPage, page, key);
+
+                //调整父页中的pageNo,key的顺序(因为马上要处理父页，因此这里将pagePath中的当前页移除)
+                pagePath.remove(pathSize - 1);
+                // inner page中 |prevPage|firstRightKey|page|
+                innerPageOps.replaceKey(parentPage, pagePath, prevPage.getPageNo(), firstRightKey,
+                        page.getPageNo());
+                return true;
+            }
+        }
+        return false;
+    }
+
+
+    private boolean tryMoveRight(LeafPage page, List<Integer> pagePath, TupleLiteral key) throws IOException {
+        int pathSize = pagePath.size();
+        int bytesRequired = key.getStorageSize();
+        IndexFileInfo idxFileInfo = page.getIndexFileInfo();
+
+        //加载父页
+        int parentPageNo = 0;
+        if (pathSize >= 2){
+            //倒数第二个就是父页
+            parentPageNo = pagePath.get(pathSize - 2);
+        }
         InnerPage parentPage = innerPageOps.loadPage(idxFileInfo, parentPageNo);
         int numPointers = parentPage.getNumPointers();
         int pagePtrIndex = parentPage.getIndexOfPointer(page.getPageNo());
 
-        // Check each sibling in its own code block so that we can constrain
-        // the scopes of the variables a bit. This keeps us from accidentally
-        // reusing the "prev" variables in the "next" section.
-
-        {
-            LeafPage prevPage = null;
-            if (pagePtrIndex - 1 >= 0) {
-                prevPage = loadLeafPage(idxFileInfo, parentPage.getPointer(pagePtrIndex - 1));
-            }
-
-            if (prevPage != null) {
-                // See if we can move some of this leaf's entries to the
-                // previous leaf, to free up space.
-
-                int count = tryLeafRelocateForSpace(page, prevPage, false, bytesRequired);
-
-                if (count > 0) {
-                    // Yes, we can do it!
-
-                    logger.debug("Relocating {} entries from leaf-page {} to left-sibling leaf-page {}", count,
-                            page.getPageNo(), prevPage.getPageNo());
-
-                    logger.debug("Space before relocation:  Leaf = " + page.getFreeSpace() + " bytes\t\tSibling = "
-                            + prevPage.getFreeSpace() + " bytes");
-
-                    page.moveEntriesLeft(prevPage, count);
-
-                    logger.debug("Space after relocation:  Leaf = " + page.getFreeSpace() + " bytes\t\tSibling = "
-                            + prevPage.getFreeSpace() + " bytes");
-
-                    BTreeIndexPageTuple firstRightKey = addEntryToLeafPair(prevPage, page, key);
-
-                    pagePath.remove(pathSize - 1);
-                    innerPageOps.replaceKey(parentPage, pagePath, prevPage.getPageNo(), firstRightKey,
-                            page.getPageNo());
-
-                    return true;
-                }
-            }
+        //从父页上获得下一页的pageNo
+        LeafPage nextPage = null;
+        if (pagePtrIndex + 1 < numPointers) {
+            nextPage = loadLeafPage(idxFileInfo, parentPage.getPointer(pagePtrIndex + 1));
         }
 
-        {
-            LeafPage nextPage = null;
-            if (pagePtrIndex + 1 < numPointers) {
-                nextPage = loadLeafPage(idxFileInfo, parentPage.getPointer(pagePtrIndex + 1));
-            }
+        if (nextPage != null) {
+            // 尝试朝右移动数据，腾出空间
+            int count = tryLeafRelocateForSpace(page, nextPage, true, bytesRequired);
+            if (count > 0) {
+                logger.debug("Relocating {} entries from leaf-page {} to right-sibling leaf-page {}",
+                        count, page.getPageNo(), nextPage.getPageNo());
+                logger.debug("Space before relocation:  Leaf = " + page.getFreeSpace() + " bytes. Sibling = "
+                        + nextPage.getFreeSpace() + " bytes");
 
-            if (nextPage != null) {
-                // See if we can move some of this leaf's entries to the next
-                // leaf, to free up space.
+                //朝右移动数据
+                page.moveEntriesRight(nextPage, count);
+                logger.debug("Space after relocation:  Leaf = " + page.getFreeSpace() + " bytes\t\tSibling = "
+                        + nextPage.getFreeSpace() + " bytes");
 
-                int count = tryLeafRelocateForSpace(page, nextPage, true, bytesRequired);
+                //将key加入到page或者nextPage中
+                BTreeIndexPageTuple firstRightKey = addEntryToLeafPair(page, nextPage, key);
 
-                if (count > 0) {
-                    // Yes, we can do it!
+                //调整父页中的pageNo,key的顺序(因为马上要处理父页，因此这里将pagePath中的当前页移除)
+                pagePath.remove(pathSize - 1);
+                innerPageOps.replaceKey(parentPage, pagePath, page.getPageNo(), firstRightKey,
+                        nextPage.getPageNo());
 
-                    logger.debug(
-                            String.format("Relocating %d entries from " + "leaf-page %d to right-sibling leaf-page %d",
-                                    count, page.getPageNo(), nextPage.getPageNo()));
-
-                    logger.debug("Space before relocation:  Leaf = " + page.getFreeSpace() + " bytes\t\tSibling = "
-                            + nextPage.getFreeSpace() + " bytes");
-
-                    page.moveEntriesRight(nextPage, count);
-
-                    logger.debug("Space after relocation:  Leaf = " + page.getFreeSpace() + " bytes\t\tSibling = "
-                            + nextPage.getFreeSpace() + " bytes");
-
-                    BTreeIndexPageTuple firstRightKey = addEntryToLeafPair(page, nextPage, key);
-
-                    pagePath.remove(pathSize - 1);
-                    innerPageOps.replaceKey(parentPage, pagePath, page.getPageNo(), firstRightKey,
-                            nextPage.getPageNo());
-
-                    return true;
-                }
+                return true;
             }
         }
+        return false;
+    }
 
-        // Couldn't relocate entries to either the prevous or next page. We
-        // must split the leaf into two.
+    private boolean relocateEntriesAndAddKey(LeafPage page, List<Integer> pagePath, TupleLiteral key)
+            throws IOException {
+
+        int pathSize = pagePath.size();
+        if (pathSize == 1){
+            return false;
+        }
+        if (pagePath.get(pathSize - 1) != page.getPageNo()) {
+            //page一定要是pagePath中最后的一个
+            throw new IllegalArgumentException("leaf page number doesn't match last page-number in page path");
+        }
+
+        // 往下一页移动
+        if(tryMoveLeft(page, pagePath, key)){
+            return true;
+        }
+
+        // 往上一页移动
+        if(tryMoveRight(page, pagePath, key)){
+            return true;
+        }
+
+        // 叶子节点容不下了，需要将页节点拆分为2页
         return false;
     }
 

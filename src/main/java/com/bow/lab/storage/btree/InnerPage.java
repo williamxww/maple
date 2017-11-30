@@ -241,11 +241,9 @@ public class InnerPage {
     }
 
     /**
-     * Returns the pointer at the specified index.
-     *
-     * @param index the index of the pointer to retrieve
-     *
-     * @return the pointer at that index
+     * 第index个entry的pointer指向的页
+     * @param index 第index个entry
+     * @return 第pointer页
      */
     public int getPointer(int index) {
         return dbPage.readUnsignedShort(pointerOffsets[index]);
@@ -263,12 +261,8 @@ public class InnerPage {
     }
 
     /**
-     * This helper method scans the inner page for the specified page-pointer,
-     * returning the index of the pointer if it is found, or -1 if the pointer
-     * is not found.
-     *
+     * 查找页号pointer在此inner page中的第几个entry上
      * @param pointer the page-pointer to find in this inner page
-     *
      * @return the index of the page-pointer if found, or -1 if not found
      */
     public int getIndexOfPointer(int pointer) {
@@ -276,7 +270,6 @@ public class InnerPage {
             if (getPointer(i) == pointer)
                 return i;
         }
-
         return -1;
     }
 

@@ -4,6 +4,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.bow.lab.storage.IStorageService;
 import com.bow.maple.expressions.TupleComparator;
 import com.bow.maple.expressions.TupleLiteral;
@@ -16,12 +19,9 @@ import com.bow.maple.relations.TableConstraintType;
 import com.bow.maple.storage.DBFile;
 import com.bow.maple.storage.DBPage;
 import com.bow.maple.storage.PageTuple;
-import com.bow.maple.storage.StorageManager;
 import com.bow.maple.storage.btreeindex.BTreeIndexPageTuple;
 import com.bow.maple.storage.btreeindex.BTreeIndexVerifier;
 import com.bow.maple.storage.btreeindex.HeaderPage;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * <p>
@@ -60,48 +60,21 @@ public class BTreeIndexService implements IndexManager {
 
     private static Logger logger = LoggerFactory.getLogger(BTreeIndexService.class);
 
-    /**
-     * This value is stored in a B-tree page's byte 0, to indicate that the page
-     * is an inner (i.e. non-leaf) page.
-     */
     public static final int BTREE_INNER_PAGE = 1;
 
-    /**
-     * This value is stored in a B-tree page's byte 0, to indicate that the page
-     * is a leaf page.
-     */
     public static final int BTREE_LEAF_PAGE = 2;
 
-    /**
-     * This value is stored in a B-tree page's byte 0, to indicate that the page
-     * is empty.
-     */
-    public static final int BTREE_EMPTY_PAGE = 2;
+    public static final int BTREE_EMPTY_PAGE = 3;
 
     /**
-     * If this flag is set to true, all data in data-pages that is no longer
-     * necessary is cleared. This will increase the cost of write-ahead logging,
-     * but it also exposes bugs more quickly because old data won't be around.
+     * 旧数据会立马被清除
      */
     public static final boolean CLEAR_OLD_DATA = true;
 
-    /**
-     * The table manager uses the storage manager a lot, so it caches a
-     * reference to the singleton instance of the storage manager at
-     * initialization.
-     */
     private IStorageService storageManager;
 
-    /**
-     * A helper class that manages the larger-scale operations involving leaf
-     * nodes of the B+ tree.
-     */
     private LeafPageOperations leafPageOps;
 
-    /**
-     * A helper class that manages the larger-scale operations involving inner
-     * nodes of the B+ tree.
-     */
     private InnerPageOperations innerPageOps;
 
     /**
@@ -150,6 +123,12 @@ public class BTreeIndexService implements IndexManager {
         }
     }
 
+    /**
+     * 初始化索引文件,索引文件的首页初始化
+     * 
+     * @param idxFileInfo 索引文件信息
+     * @throws IOException e
+     */
     @Override
     public void initIndexInfo(IndexFileInfo idxFileInfo) throws IOException {
         String indexName = idxFileInfo.getIndexName();
@@ -177,11 +156,16 @@ public class BTreeIndexService implements IndexManager {
         // For now, we don't need to do anything in this method.
     }
 
+    /**
+     *
+     * @param idxFileInfo the index to add the tuple to
+     * @param tup 需要加索引的tuple
+     * @throws IOException e
+     */
     @Override
     public void addTuple(IndexFileInfo idxFileInfo, PageTuple tup) throws IOException {
 
-        // These are the values we store into the index for the tuple: the key,
-        // and a file-pointer to the tuple that the key is for.
+        // 索引值 (key,file-pointer)
         TupleLiteral newTupleKey = makeStoredKeyValue(idxFileInfo, tup);
         logger.debug("Adding search-key value " + newTupleKey + " to index " + idxFileInfo.getIndexName());
         // Navigate to the leaf-page, creating one if the index is currently
@@ -206,104 +190,54 @@ public class BTreeIndexService implements IndexManager {
     }
 
     /**
-     * This helper method performs the common task of navigating from the root
-     * of the B<sup>+</sup> tree down to the appropriate leaf node, based on the
-     * search-key provided by the caller. Note that this method does not
-     * determine whether the search-key actually exists. Rather, it simply
-     * navigates to the leaf in the index where the search-key would appear, if
-     * it indeed appears in the index.
+     * 将searchKey放到索引文件的对应叶子节点里。
      *
      * @param idxFileInfo details of the index that is being navigated
-     *
-     * @param searchKey the search-key being used to navigate the B<sup>+</sup>
-     *        tree structure
-     *
-     * @param createIfNeeded If the B<sup>+</sup> tree is currently empty (i.e.
-     *        not even containing leaf pages) then this argument can be used to
-     *        create a new leaf page where the search-key can be stored. This
-     *        allows the method to be used for adding tuples to the index.
-     *
-     * @param pagePath If this optional argument is specified, then the method
-     *        stores the sequence of page-numbers it visits as it navigates from
-     *        root to leaf. If {@code null} is passed then nothing is stored as
-     *        the method traverses the index structure.
-     *
-     * @return the leaf-page where the search-key would appear, or {@code null}
-     *         if the index is currently empty and {@code createIfNeeded} is
-     *         {@code false}.
-     *
-     * @throws IOException if an IO error occurs while navigating the index
-     *         structure
+     * @param searchKey 遍历b+树要查找的key
+     * @param createIfNeeded false时，若发现页不存在则不管了
+     * @param pagePath 记录了从根到叶子节点的路径
+     * @return searchKey所在的叶子节点
+     * @throws IOException e
      */
     private LeafPage navigateToLeafPage(IndexFileInfo idxFileInfo, TupleLiteral searchKey, boolean createIfNeeded,
             List<Integer> pagePath) throws IOException {
 
         String indexName = idxFileInfo.getIndexName();
-
-        // The header page tells us where the root page starts.
         DBFile dbFile = idxFileInfo.getDBFile();
         DBPage dbpHeader = storageManager.loadDBPage(dbFile, 0);
 
-        // Get the root page of the index.
-        int rootPageNo = HeaderPage.getRootPageNo(dbpHeader);
-        DBPage dbpRoot;
-        if (rootPageNo == 0) {
-            // The index doesn't have any data-pages at all yet. Create one if
-            // the caller wants it.
-
-            if (!createIfNeeded)
-                return null;
-
-            // We need to create a brand new leaf page and make it the root.
-
-            logger.debug("Index " + indexName + " currently has no data "
-                    + "pages; finding/creating one to use as the root!");
-
-            dbpRoot = getNewDataPage(dbFile);
-            rootPageNo = dbpRoot.getPageNo();
-
-            HeaderPage.setRootPageNo(dbpHeader, rootPageNo);
-            HeaderPage.setFirstLeafPageNo(dbpHeader, rootPageNo);
-
-            dbpRoot.writeByte(0, BTREE_LEAF_PAGE);
-            LeafPage.init(dbpRoot, idxFileInfo);
-
-            logger.debug("New root pageNo is " + rootPageNo);
-        } else {
-            // The index has a root page; load it.
-            dbpRoot = storageManager.loadDBPage(dbFile, rootPageNo);
-            logger.debug("Index " + idxFileInfo.getIndexName() + " root pageNo is " + rootPageNo);
+        // 从根开始找searchKey应该位于哪个叶子节点
+        DBPage dbPage = getRootPage(idxFileInfo, createIfNeeded);
+        if (!createIfNeeded && dbPage == null) {
+            return null;
         }
-
-        // Next, descend down the index's structure until we find the proper
-        // leaf-page based on the key value(s).
-        DBPage dbPage = dbpRoot;
+        int rootPageNo = HeaderPage.getRootPageNo(dbpHeader);
         int pageType = dbPage.readByte(0);
-        if (pageType != BTREE_INNER_PAGE && pageType != BTREE_LEAF_PAGE){
+        if (pageType != BTREE_INNER_PAGE && pageType != BTREE_LEAF_PAGE) {
             throw new IOException("Invalid page type encountered:  " + pageType);
         }
-        if (pagePath != null){
+        if (pagePath != null) {
             pagePath.add(rootPageNo);
         }
+
+        // 页内部按序找，找到比searchKey大的key则调到对应页，直到找到叶子节点。记录经过的所有节点。
         while (pageType != BTREE_LEAF_PAGE) {
             logger.debug("Examining non-leaf page " + dbPage.getPageNo() + " of index " + indexName);
-
             int nextPageNo = -1;
-
             InnerPage innerPage = new InnerPage(dbPage, idxFileInfo);
-
             int numKeys = innerPage.getNumKeys();
             if (numKeys < 1) {
                 throw new IllegalStateException(
                         "Non-leaf page " + dbPage.getPageNo() + " is invalid:  it contains no keys!");
             }
-
             for (int i = 0; i < numKeys; i++) {
+                // 遍历innerPage中每个key找到比searchKey大的key
                 BTreeIndexPageTuple key = innerPage.getKey(i);
                 int cmp = TupleComparator.comparePartialTuples(searchKey, key);
                 if (cmp < 0) {
                     logger.debug(
                             "Value is less than key at index " + i + "; following pointer " + i + " before this key.");
+                    // |p0|k0|p1|k1|p2|k2|p3|k3|p4|
                     nextPageNo = innerPage.getPointer(i);
                     break;
                 } else if (cmp == 0) {
@@ -315,98 +249,109 @@ public class BTreeIndexService implements IndexManager {
             }
 
             if (nextPageNo == -1) {
-                // None of the other entries in the page matched the tuple. Get
-                // the last pointer in the page.
+                // 若searchKey>此页中所有key,那么此innerPage的最后一个pageNo就是下一页
                 logger.debug("Value is greater than all keys in this page;" + " following last pointer " + numKeys
                         + " in the page.");
                 nextPageNo = innerPage.getPointer(numKeys);
             }
 
-            // Navigate to the next page in the index.
+            // 加在下一页并记录path
             dbPage = storageManager.loadDBPage(dbFile, nextPageNo);
             pageType = dbPage.readByte(0);
-            if (pageType != BTREE_INNER_PAGE && pageType != BTREE_LEAF_PAGE)
+            if (pageType != BTREE_INNER_PAGE && pageType != BTREE_LEAF_PAGE) {
                 throw new IOException("Invalid page type encountered:  " + pageType);
-
-            if (pagePath != null)
+            }
+            if (pagePath != null) {
                 pagePath.add(nextPageNo);
+            }
         }
-
         return new LeafPage(dbPage, idxFileInfo);
     }
 
-    /**
-     * This helper function finds and returns a new data page, either by taking
-     * it from the empty-pages list in the index file, or if this list is empty,
-     * creating a brand new page at the end of the file.
-     *
-     * @param dbFile the index file to get a new empty data page from
-     *
-     * @return an empty {@code DBPage} that can be used as a new index page.
-     *
-     * @throws IOException if an error occurs while loading a data page, or
-     *         while extending the size of the index file.
-     */
-    public DBPage getNewDataPage(DBFile dbFile) throws IOException {
+    private DBPage getRootPage(IndexFileInfo idxFileInfo, boolean createIfNeeded) throws IOException {
+        String indexName = idxFileInfo.getIndexName();
 
-        if (dbFile == null)
-            throw new IllegalArgumentException("dbFile cannot be null");
-
+        // 根据首页可以知道root page的起始位置
+        DBFile dbFile = idxFileInfo.getDBFile();
         DBPage dbpHeader = storageManager.loadDBPage(dbFile, 0);
 
+        // Get the root page of the index.
+        int rootPageNo = HeaderPage.getRootPageNo(dbpHeader);
+        DBPage dbpRoot;
+        if (rootPageNo == 0) {
+            // 还没有数据页
+            if (!createIfNeeded) {
+                return null;
+            }
+            logger.debug("Index " + indexName + " currently has no data "
+                    + "pages; finding/creating one to use as the root!");
+            // 创建根数据页
+            dbpRoot = getNewDataPage(dbFile);
+            rootPageNo = dbpRoot.getPageNo();
+            HeaderPage.setRootPageNo(dbpHeader, rootPageNo);
+            HeaderPage.setFirstLeafPageNo(dbpHeader, rootPageNo);
+            dbpRoot.writeByte(0, BTREE_LEAF_PAGE);
+            LeafPage.init(dbpRoot, idxFileInfo);
+            logger.debug("New root pageNo is " + rootPageNo);
+        } else {
+            // 索引已有rootPage了，加载它
+            dbpRoot = storageManager.loadDBPage(dbFile, rootPageNo);
+            logger.debug("Index " + idxFileInfo.getIndexName() + " root pageNo is " + rootPageNo);
+        }
+        return dbpRoot;
+    }
+
+    /**
+     * 获取新的数据页，优先从空页列表中获取，没有时重新创建。
+     * 
+     * @param dbFile the index file to get a new empty data page from
+     * @return an empty {@code DBPage} that can be used as a new index page.
+     * @throws IOException e
+     */
+    public DBPage getNewDataPage(DBFile dbFile) throws IOException {
+        if (dbFile == null) {
+            throw new IllegalArgumentException("dbFile cannot be null");
+        }
+        DBPage dbpHeader = storageManager.loadDBPage(dbFile, 0);
         DBPage newPage;
         int pageNo = HeaderPage.getFirstEmptyPageNo(dbpHeader);
-
         if (pageNo == 0) {
-            // There are no empty pages. Create a new page to use.
-
+            // 没有空页，就创建一个
             logger.debug("No empty pages.  Extending index file " + dbFile + " by one page.");
-
             int numPages = dbFile.getNumPages();
             newPage = storageManager.loadDBPage(dbFile, numPages, true);
         } else {
-            // Load the empty page, and remove it from the chain of empty pages.
-
+            // 有空页就用，并将其从空页列表删除
             logger.debug("First empty page number is " + pageNo);
-
             newPage = storageManager.loadDBPage(dbFile, pageNo);
             int nextEmptyPage = newPage.readUnsignedShort(1);
             HeaderPage.setFirstEmptyPageNo(dbpHeader, nextEmptyPage);
         }
-
         logger.debug("Found new data page for the index:  page " + newPage.getPageNo());
-
         // TODO: Increment the number of data pages?
-
         return newPage;
     }
 
     /**
-     * This helper function marks a data page in the index as "empty", and adds
-     * it to the list of empty pages in the index file.
-     *
+     * 清除此页数据，将此页设置为空页列表的第一个。
+     * 
      * @param dbPage the data-page that is no longer used.
-     *
-     * @throws IOException if an IO error occurs while releasing the data page,
-     *         such as not being able to load the header page.
+     * @throws IOException e
      */
     public void releaseDataPage(DBPage dbPage) throws IOException {
-        // TODO: If this page is the last page of the index file, we could
-        // truncate pages off the end until we hit a non-empty page.
-        // Instead, we'll leave all the pages around forever...
-
+        // TODO: 如果此页是indexFile的最后一页，我们可以直接删除
         DBFile dbFile = dbPage.getDBFile();
-        // Record in the page that it is empty.
+        // 将页类型改为空页
         dbPage.writeByte(0, BTREE_EMPTY_PAGE);
         DBPage dbpHeader = storageManager.loadDBPage(dbFile, 0);
-        // Retrieve the old "first empty page" value, and store it in this page.
+        // 取出当前第一个空页的页号，设置到此页上
         int prevEmptyPageNo = HeaderPage.getFirstEmptyPageNo(dbpHeader);
         dbPage.writeShort(1, prevEmptyPageNo);
         if (CLEAR_OLD_DATA) {
-            // Clear out the remainder of the data-page since it's now unused.
+            // 清除所有数据
             dbPage.setDataRange(3, dbPage.getPageSize() - 3, (byte) 0);
         }
-        // Store the new "first empty page" value into the header.
+        // 将此页设置为第一个空页
         HeaderPage.setFirstEmptyPageNo(dbpHeader, dbPage.getPageNo());
     }
 
