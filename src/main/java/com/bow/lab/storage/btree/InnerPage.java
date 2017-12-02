@@ -146,9 +146,7 @@ public class InnerPage {
     }
 
     /**
-     * This private helper scans through the inner page's contents and caches
-     * the contents of the inner page in a way that makes it easy to use and
-     * manipulate.
+     * 更新此页的缓存
      */
     private void loadPageContents() {
         numPointers = dbPage.readUnsignedShort(OFFSET_NUM_POINTERS);
@@ -291,61 +289,41 @@ public class InnerPage {
     }
 
     /**
-     * This method inserts a new key and page-pointer into the inner page,
-     * immediately following the page-pointer {@code pagePtr1}, which must
-     * already appear within the page. The caller is expected to have already
-     * verified that the new key and page-pointer are able to fit in the page.
-     *
-     * @param pagePtr1 the page-pointer which should appear before the new key
-     *        in the inner page. <b>This is required to already appear within
-     *        the inner page.</b>
-     *
-     * @param key1 the new key to add to the inner page, immediately after the
-     *        {@code pagePtr1} value.
-     *
-     * @param pagePtr2 the new page-pointer to add to the inner page,
-     *        immediately after the {@code key1} value.
-     *
-     * @throws IllegalArgumentException if the specified {@code pagePtr1} value
-     *         cannot be found in the inner page, or if the new key and
-     *         page-pointer won't fit within the space available in the page.
+     * 将(pagePtr1,key1,pagePtr2)加入到inner page，pagePtr1必须要在此页中已经存在，否则报错。
+     * 从此inner page中找到pagePtr1，然后将(key1,pagePtr2)加入
+     * @param pagePtr1 在此inner page中已存在，否则报错
+     * @param key1 紧跟pagePtr1
+     * @param pagePtr2 紧跟key1
+     * @throws IllegalArgumentException e
      */
     public void addEntry(int pagePtr1, Tuple key1, int pagePtr2) {
 
         if (logger.isTraceEnabled()) {
             logger.trace("Non-leaf page " + getPageNo() + " contents before adding entry:\n" + toFormattedString());
         }
-
         int i;
         for (i = 0; i < numPointers; i++) {
-            if (getPointer(i) == pagePtr1)
+            if (getPointer(i) == pagePtr1){
                 break;
+            }
         }
-
-        logger.debug(String.format("Found page-pointer %d in index %d", pagePtr1, i));
-
+        logger.debug("Found page-pointer {} in index {}", pagePtr1, i);
         if (i == numPointers) {
             throw new IllegalArgumentException(
                     "Can't find initial page-pointer " + pagePtr1 + " in non-leaf page " + getPageNo());
         }
 
-        // Figure out where to insert the new key and value.
-
+        // 找出从哪里开始插入新值
         int oldKeyStart;
         if (i < numPointers - 1) {
-            // There's a key i associated with pointer i. Use the key's offset,
-            // since it's after the pointer.
             oldKeyStart = keys[i].getOffset();
         } else {
-            // The pageNo1 pointer is the last pointer in the sequence. Use
-            // the end-offset of the data in the page.
+            //最后一个page pointer才是pagePtr1，则新值(key1,pagePtr2)从endOffset开始
             oldKeyStart = endOffset;
         }
         int len = endOffset - oldKeyStart;
 
-        // Compute the size of the new key and pointer, and make sure they fit
-        // into the page.
-
+        // 计算新entry<key,pageNo>的大小
         List<ColumnInfo> colInfos = idxFileInfo.getIndexSchema();
         int newKeySize = PageTuple.getTupleStorageSize(colInfos, key1);
         int newEntrySize = newKeySize + 2;
@@ -355,20 +333,16 @@ public class InnerPage {
         }
 
         if (len > 0) {
-            // Move the data after the pageNo1 pointer to make room for
-            // the new key and pointer.
+            // 腾出空间
             dbPage.moveDataRange(oldKeyStart, oldKeyStart + newEntrySize, len);
         }
 
-        // Write in the new key/pointer values.
+        // 写入 new key/pointer values.
         PageTuple.storeTuple(dbPage, oldKeyStart, colInfos, key1);
         dbPage.writeShort(oldKeyStart + newKeySize, pagePtr2);
 
-        // Finally, increment the number of pointers in the page, then reload
-        // the cached data.
-
+        // 更新entry总数
         dbPage.writeShort(OFFSET_NUM_POINTERS, numPointers + 1);
-
         loadPageContents();
 
         if (logger.isTraceEnabled()) {

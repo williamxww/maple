@@ -235,22 +235,12 @@ public class LeafPageOperations {
     }
 
     /**
-     * This helper function determines how many entries must be relocated from
-     * one leaf-page to another, in order to free up the specified number of
-     * bytes. If it is possible, the number of entries that must be relocated is
-     * returned. If it is not possible, the method returns 0.
-     *
      * leaf需要腾出bytesRequired空间，因此将此页的部分key转移到相邻页上。
      *
      * @param leaf the leaf node to relocate entries from
      * @param adjLeaf 相邻页，本页的部分key会转移到相邻页
-     * @param movingRight pass {@code true} if the sibling is to the right of
-     *        {@code page} (and therefore we are moving entries right), or
-     *        {@code false} if the sibling is to the left of {@code page} (and
-     *        therefore we are moving entries left).
-     *
+     * @param movingRight 数据朝右页移动以获取空间
      * @param bytesRequired leaf需要腾出空间大小
-     *
      * @return leaf为释放空间所需要移动的entry数量
      */
     private int tryLeafRelocateForSpace(LeafPage leaf, LeafPage adjLeaf, boolean movingRight, int bytesRequired) {
@@ -297,19 +287,7 @@ public class LeafPageOperations {
     }
 
     /**
-     * <p>
-     * This helper function splits the specified leaf-node into two nodes, also
-     * updating the parent node in the process, and then inserts the specified
-     * search-key into the appropriate leaf. This method is used to add a key to
-     * a leaf that doesn't have enough space, when it isn't possible to relocate
-     * values to the left or right sibling of the leaf.
-     * </p>
-     * <p>
-     * When the leaf node is split, half of the keys are put into the new leaf,
-     * regardless of the size of individual keys. In other words, this method
-     * doesn't try to keep the leaves half-full based on bytes used.
-     * </p>
-     *
+     * 将叶子节点leaf分成2个节点，插入key，然后更新父节点的索引.叶子节点空间不够时会调用此方法。
      *
      * @param leaf the leaf node to split and then add the key to
      * @param pagePath 从root到此节点所经过的pageNo
@@ -328,9 +306,7 @@ public class LeafPageOperations {
             logger.debug("Old next-page:  " + leaf.getNextPageNo());
         }
 
-        // Get a new blank page in the index, with the same parent as the
-        // leaf-page we were handed.
-
+        // 获取一个空页作为新叶子节点
         IndexFileInfo idxFileInfo = leaf.getIndexFileInfo();
         DBFile dbFile = idxFileInfo.getDBFile();
         DBPage newDBPage = bTreeManager.getNewDataPage(dbFile);
@@ -361,24 +337,18 @@ public class LeafPageOperations {
 
         BTreeIndexPageTuple firstRightKey = addEntryToLeafPair(leaf, newLeaf, key);
 
-        // If the current node doesn't have a parent, it's because it's
-        // currently the root.
+        // 只有一页
         if (pathSize == 1) {
-            // 创建一个root节点，是leaf和newLeaf的父节点
+            // 创建一个root节点作为leaf和newLeaf的父节点
             DBPage parentPage = bTreeManager.getNewDataPage(dbFile);
             InnerPage.init(parentPage, idxFileInfo, leaf.getPageNo(), firstRightKey, newLeaf.getPageNo());
             int parentPageNo = parentPage.getPageNo();
-            // We have a new root-page in the index!
+            // 在首页中记录根页
             DBPage dbpHeader = storageManager.loadDBPage(dbFile, 0);
             HeaderPage.setRootPageNo(dbpHeader, parentPageNo);
             logger.debug("Set index root-page to inner-page " + parentPageNo);
         } else {
-            // Add the new leaf into the parent non-leaf node. (This may cause
-            // the parent node's contents to be moved or split, if the parent
-            // is full.)
-
-            // (We already set the new leaf's parent-page-number earlier.)
-
+            // 获取leaf的父页，然后将(pageNo, key, pageNo)写入父页
             int parentPageNo = pagePath.get(pathSize - 2);
             DBPage dbpParent = storageManager.loadDBPage(dbFile, parentPageNo);
             InnerPage parentPage = new InnerPage(dbpParent, idxFileInfo);
