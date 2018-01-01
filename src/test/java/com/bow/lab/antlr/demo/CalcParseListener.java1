@@ -1,0 +1,50 @@
+package com.bow.lab.antlr.demo;
+
+import java.util.Stack;
+
+/**
+ * 监听器模式下，是由ANTLR框架触发访问子节点的
+ * 
+ * @author vv
+ * @since 2018/1/1.
+ */
+public class CalcParseListener extends CalculatorBaseListener {
+
+    private Stack<Integer> valueStack = new Stack<>();
+
+    @Override
+    public void enterInt(CalculatorParser.IntContext ctx) {
+        valueStack.push(Integer.valueOf(ctx.INT().getText()));
+    }
+
+    @Override
+    public void exitMulDiv(CalculatorParser.MulDivContext ctx) {
+        Integer right = valueStack.pop();
+        Integer left = valueStack.pop();
+        Integer result;
+        if (ctx.op.getType() == CalculatorParser.MULT) {
+            result = left * right;
+        } else {
+            result = left / right;
+        }
+        valueStack.push(result);
+    }
+
+    @Override
+    public void exitAddSub(CalculatorParser.AddSubContext ctx) {
+        Integer right = valueStack.pop();
+        Integer left = valueStack.pop();
+        Integer result;
+        if (ctx.op.getType() == CalculatorParser.PLUS) {
+            result = left + right;
+        } else {
+            result = left - right;
+        }
+        valueStack.push(result);
+    }
+
+    @Override
+    public void exitStatement(CalculatorParser.StatementContext ctx) {
+        System.out.println(valueStack.pop());
+    }
+}
