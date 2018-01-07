@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.bow.lab.storage.IIndexService;
+import com.bow.lab.storage.heap.PageTupleUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,7 +58,7 @@ import com.bow.maple.storage.btreeindex.HeaderPage;
  * file-pointer to the tuple.
  * </p>
  */
-public class BTreeIndexService implements IndexManager {
+public class BTreeIndexService implements IIndexService {
 
     private static Logger logger = LoggerFactory.getLogger(BTreeIndexService.class);
 
@@ -373,7 +375,7 @@ public class BTreeIndexService implements IndexManager {
         // ptup的指针(pageNo,offset)放到最后
         newKeyVal.addValue(ptup.getExternalReference());
         List<ColumnInfo> colInfos = idxFileInfo.getIndexSchema();
-        int storageSize = PageTuple.getTupleStorageSize(colInfos, newKeyVal);
+        int storageSize = PageTupleUtil.getTupleStorageSize(colInfos, newKeyVal);
         newKeyVal.setStorageSize(storageSize);
         return newKeyVal;
     }

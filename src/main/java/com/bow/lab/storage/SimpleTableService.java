@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.bow.lab.storage.heap.PageTupleUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -345,7 +346,7 @@ public class SimpleTableService implements ITableService {
     public Tuple addTuple(TableFileInfo tblFileInfo, Tuple tup) throws IOException {
 
         DBFile dbFile = tblFileInfo.getDBFile();
-        int tupSize = PageTuple.getTupleStorageSize(tblFileInfo.getSchema().getColumnInfos(), tup);
+        int tupSize = PageTupleUtil.getTupleStorageSize(tblFileInfo.getSchema().getColumnInfos(), tup);
         LOGGER.debug("Adding new tuple of size " + tupSize + " bytes.");
 
         // 确保一页能放下一个tuple，每个tuple还需要对应一个slot(2 Byte)

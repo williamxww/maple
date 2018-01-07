@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Map;
 
+import com.bow.lab.storage.heap.PageTupleUtil;
 import com.bow.maple.qeval.ColumnStats;
 import com.bow.maple.qeval.ColumnStatsCollector;
 import com.bow.maple.qeval.TableStats;
@@ -667,7 +668,7 @@ public class HeapFileTableManager implements TableManager {
 
         DBFile dbFile = tblFileInfo.getDBFile();
 
-        int tupSize = PageTuple.getTupleStorageSize(
+        int tupSize = PageTupleUtil.getTupleStorageSize(
             tblFileInfo.getSchema().getColumnInfos(), tup);
 
         logger.debug("Adding new tuple of size " + tupSize + " bytes.");

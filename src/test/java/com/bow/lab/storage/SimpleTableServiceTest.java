@@ -78,7 +78,7 @@ public class SimpleTableServiceTest extends AbstractTest {
         // 获取此表的TableFileInfo
         TableFileInfo tblFileInfo = tableService.openTable(TABLE_NAME);
         TupleLiteral tuple = new TupleLiteral();
-        tuple.addValue(1);// id
+        tuple.addValue(3);// id
         tuple.addValue(28);// age
         txnService.startTransaction(true);
         tableService.addTuple(tblFileInfo, tuple);

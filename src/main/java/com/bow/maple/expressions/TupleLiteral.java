@@ -9,12 +9,13 @@ import com.bow.maple.relations.Tuple;
 
 
 /**
- * A simple implementation of the {@link Tuple} interface for storing literal
- * tuple values.
+ * {@link Tuple}接口的简单实现，用数组保存各个列的值
  */
 public class TupleLiteral implements Tuple, Serializable {
 
-    /** The actual values of the columns in the tuple. */
+    /**
+     * 存放tuple中各个列的值
+     */
     private ArrayList<Object> values;
 
 

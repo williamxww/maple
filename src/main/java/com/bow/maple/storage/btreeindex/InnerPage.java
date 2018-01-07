@@ -3,6 +3,7 @@ package com.bow.maple.storage.btreeindex;
 
 import java.util.List;
 
+import com.bow.lab.storage.heap.PageTupleUtil;
 import com.bow.maple.expressions.TupleLiteral;
 import com.bow.maple.indexes.IndexFileInfo;
 import com.bow.maple.relations.ColumnInfo;
@@ -157,7 +158,7 @@ public class InnerPage {
         dbPage.writeShort(offset, pagePtr1);
         offset += 2;
 
-        offset = PageTuple.storeTuple(dbPage, offset,
+        offset = PageTupleUtil.storeTuple(dbPage, offset,
             idxFileInfo.getIndexSchema(), key1);
 
         dbPage.writeShort(offset, pagePtr2);
@@ -324,7 +325,7 @@ public class InnerPage {
         int oldLen = keys[index].getEndOffset() - oldStart;
         
         List<ColumnInfo> colInfos = idxFileInfo.getIndexSchema();
-        int newLen = PageTuple.getTupleStorageSize(colInfos, key);
+        int newLen = PageTupleUtil.getTupleStorageSize(colInfos, key);
         
         if (newLen != oldLen) {
             // Need to adjust the amount of space the key takes.
@@ -338,7 +339,7 @@ public class InnerPage {
                 endOffset - oldStart - oldLen);
         }
 
-        PageTuple.storeTuple(dbPage, oldStart, colInfos, key);
+        PageTupleUtil.storeTuple(dbPage, oldStart, colInfos, key);
 
         // Reload the page contents.
         // TODO:  This is slow, but it should be fine for now.
@@ -407,7 +408,7 @@ public class InnerPage {
         // into the page.
 
         List<ColumnInfo> colInfos = idxFileInfo.getIndexSchema();
-        int newKeySize = PageTuple.getTupleStorageSize(colInfos, key1);
+        int newKeySize = PageTupleUtil.getTupleStorageSize(colInfos, key1);
         int newEntrySize = newKeySize + 2;
         if (endOffset + newEntrySize > dbPage.getPageSize()) {
             throw new IllegalArgumentException("New key-value and " +
@@ -421,7 +422,7 @@ public class InnerPage {
         }
 
         // Write in the new key/pointer values.
-        PageTuple.storeTuple(dbPage, oldKeyStart, colInfos, key1);
+        PageTupleUtil.storeTuple(dbPage, oldKeyStart, colInfos, key1);
         dbPage.writeShort(oldKeyStart + newKeySize, pagePtr2);
 
         // Finally, increment the number of pointers in the page, then reload
@@ -484,7 +485,7 @@ public class InnerPage {
         // However, this situation is only valid if the right sibling is EMPTY.
         int parentKeyLen = 0;
         if (parentKey != null) {
-            parentKeyLen = PageTuple.getTupleStorageSize(
+            parentKeyLen = PageTupleUtil.getTupleStorageSize(
                 idxFileInfo.getIndexSchema(), parentKey);
         }
         else {
@@ -503,7 +504,7 @@ public class InnerPage {
 
         if (parentKey != null) {
             // Write in the parent key
-            PageTuple.storeTuple(leftSibling.dbPage, leftSibling.endOffset,
+            PageTupleUtil.storeTuple(leftSibling.dbPage, leftSibling.endOffset,
                 idxFileInfo.getIndexSchema(), parentKey);
         }
 
@@ -608,7 +609,7 @@ public class InnerPage {
         // However, this situation is only valid if the right sibling is EMPTY.
         int parentKeyLen = 0;
         if (parentKey != null) {
-            parentKeyLen = PageTuple.getTupleStorageSize(
+            parentKeyLen = PageTupleUtil.getTupleStorageSize(
                 idxFileInfo.getIndexSchema(), parentKey);
         }
         else {
@@ -635,7 +636,7 @@ public class InnerPage {
 
         if (parentKey != null) {
             // Write in the parent key
-            PageTuple.storeTuple(rightSibling.dbPage, OFFSET_FIRST_POINTER + len,
+            PageTupleUtil.storeTuple(rightSibling.dbPage, OFFSET_FIRST_POINTER + len,
                 idxFileInfo.getIndexSchema(), parentKey);
         }
 

@@ -1,6 +1,8 @@
 package com.bow.maple.storage.heapfile;
 
 
+import com.bow.lab.storage.IPageStructure;
+import com.bow.lab.storage.heap.PageTupleUtil;
 import com.bow.maple.relations.Tuple;
 import com.bow.maple.storage.DBPage;
 import com.bow.maple.storage.FilePointer;
@@ -8,6 +10,7 @@ import com.bow.maple.storage.PageTuple;
 import com.bow.maple.relations.ColumnInfo;
 
 import com.bow.maple.storage.TableFileInfo;
+import com.bow.maple.util.ExtensionLoader;
 
 import java.util.List;
 
@@ -16,8 +19,7 @@ import java.util.List;
  */
 public class HeapFilePageTuple extends PageTuple {
 
-    /** General information about the table this tuple is from. */
-    private TableFileInfo tblFileInfo;
+    private IPageStructure pageStructure = ExtensionLoader.getExtensionLoader(IPageStructure.class).getExtension();
 
 
     /**
@@ -59,19 +61,21 @@ public class HeapFilePageTuple extends PageTuple {
      *
      * @return a file-pointer that can be used to look up this tuple
      */
+    @Override
     public FilePointer getExternalReference() {
         return new FilePointer(getDBPage().getPageNo(),
-                               DataPage.getSlotOffset(slot));
+                pageStructure.getSlotOffset(slot));
     }
 
 
+
     protected void insertTupleDataRange(int off, int len) {
-        DataPage.insertTupleDataRange(this.getDBPage(), off, len);
+        pageStructure.insertTupleDataRange(this.getDBPage(), off, len);
     }
 
 
     protected void deleteTupleDataRange(int off, int len) {
-        DataPage.deleteTupleDataRange(this.getDBPage(), off, len);
+        pageStructure.deleteTupleDataRange(this.getDBPage(), off, len);
     }
 
 
@@ -84,7 +88,7 @@ public class HeapFilePageTuple extends PageTuple {
         DBPage dbPage, int slot, int pageOffset, Tuple tuple) {
 
         List<ColumnInfo> colInfos = tblInfo.getSchema().getColumnInfos();
-        PageTuple.storeTuple(dbPage, pageOffset, colInfos, tuple);
+        PageTupleUtil.storeTuple(dbPage, pageOffset, colInfos, tuple);
 
         return new HeapFilePageTuple(tblInfo, dbPage, slot, pageOffset);
     }

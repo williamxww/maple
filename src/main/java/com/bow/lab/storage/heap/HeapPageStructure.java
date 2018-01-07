@@ -45,7 +45,8 @@ public class HeapPageStructure implements IPageStructure {
      * @param slot slot
      * @return slot的偏移量
      */
-    private static int getSlotOffset(int slot) {
+    @Override
+    public int getSlotOffset(int slot) {
         return (1 + slot) * 2;
     }
 

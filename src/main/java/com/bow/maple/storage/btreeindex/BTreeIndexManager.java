@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.bow.lab.storage.heap.PageTupleUtil;
 import com.bow.maple.expressions.TupleComparator;
 import org.apache.log4j.Logger;
 
@@ -492,7 +493,7 @@ public class BTreeIndexManager implements IndexManager {
         newKeyVal.addValue(ptup.getExternalReference());
 
         List<ColumnInfo> colInfos = idxFileInfo.getIndexSchema();
-        int storageSize = PageTuple.getTupleStorageSize(colInfos, newKeyVal);
+        int storageSize = PageTupleUtil.getTupleStorageSize(colInfos, newKeyVal);
         newKeyVal.setStorageSize(storageSize);
 
         return newKeyVal;

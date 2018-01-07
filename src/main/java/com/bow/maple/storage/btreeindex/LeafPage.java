@@ -4,6 +4,7 @@ package com.bow.maple.storage.btreeindex;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.bow.lab.storage.heap.PageTupleUtil;
 import org.apache.log4j.Logger;
 
 import com.bow.maple.expressions.TupleComparator;
@@ -376,7 +377,7 @@ public class LeafPage {
         }
 
         // Write the key and its associated file-pointer value into the page.
-        PageTuple.storeTuple(dbPage, keyOffset, colInfos, newKey);
+        PageTupleUtil.storeTuple(dbPage, keyOffset, colInfos, newKey);
 
         // Increment the total number of entries.
         dbPage.writeShort(OFFSET_NUM_ENTRIES, numEntries + 1);

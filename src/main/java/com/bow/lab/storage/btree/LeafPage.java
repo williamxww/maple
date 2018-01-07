@@ -3,6 +3,7 @@ package com.bow.lab.storage.btree;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.bow.lab.storage.heap.PageTupleUtil;
 import com.bow.maple.expressions.TupleComparator;
 import com.bow.maple.expressions.TupleLiteral;
 import com.bow.maple.indexes.IndexFileInfo;
@@ -313,7 +314,7 @@ public class LeafPage {
             logger.debug("New key is at end of leaf-page data; not moving anything.");
         }
         // Write the key and its associated file-pointer value into the page.
-        PageTuple.storeTuple(dbPage, keyOffset, colInfos, newKey);
+        PageTupleUtil.storeTuple(dbPage, keyOffset, colInfos, newKey);
         dbPage.writeShort(OFFSET_NUM_ENTRIES, numEntries + 1);
         // Reload the page contents now that we have a new key in the mix.
         loadPageContents();

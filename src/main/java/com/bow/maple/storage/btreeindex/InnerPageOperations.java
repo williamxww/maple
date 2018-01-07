@@ -4,6 +4,7 @@ package com.bow.maple.storage.btreeindex;
 import java.io.IOException;
 import java.util.List;
 
+import com.bow.lab.storage.heap.PageTupleUtil;
 import com.bow.maple.relations.Tuple;
 import com.bow.maple.storage.DBFile;
 import org.apache.log4j.Logger;
@@ -80,7 +81,7 @@ public class InnerPageOperations {
                 BTreeIndexPageTuple oldKey = page.getKey(i);
                 int oldKeySize = oldKey.getSize();
 
-                int newKeySize = PageTuple.getTupleStorageSize(
+                int newKeySize = PageTupleUtil.getTupleStorageSize(
                     page.getIndexFileInfo().getIndexSchema(), key1);
 
                 if (page.getFreeSpace() - oldKeySize + newKeySize >= 0) {
@@ -222,7 +223,7 @@ public class InnerPageOperations {
 
         // The new entry will be the key, plus 2 bytes for the page-pointer.
         List<ColumnInfo> colInfos = page.getIndexFileInfo().getIndexSchema();
-        int newEntrySize = PageTuple.getTupleStorageSize(colInfos, key1) + 2;
+        int newEntrySize = PageTupleUtil.getTupleStorageSize(colInfos, key1) + 2;
 
         if (page.getFreeSpace() < newEntrySize) {
             // Try to relocate entries from this inner page to either sibling,

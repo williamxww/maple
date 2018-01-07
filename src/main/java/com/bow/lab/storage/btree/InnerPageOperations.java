@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.List;
 
 import com.bow.lab.storage.IStorageService;
+import com.bow.lab.storage.heap.PageTupleUtil;
 import com.bow.maple.expressions.TupleLiteral;
 import com.bow.maple.indexes.IndexFileInfo;
 import com.bow.maple.relations.ColumnInfo;
@@ -78,7 +79,7 @@ public class InnerPageOperations {
                 BTreeIndexPageTuple oldKey = page.getKey(i);
                 int oldKeySize = oldKey.getSize();
 
-                int newKeySize = PageTuple.getTupleStorageSize(page.getIndexFileInfo().getIndexSchema(), key1);
+                int newKeySize = PageTupleUtil.getTupleStorageSize(page.getIndexFileInfo().getIndexSchema(), key1);
 
                 if (page.getFreeSpace() - oldKeySize + newKeySize >= 0) {
                     // We have room - go ahead and do this.
@@ -184,7 +185,7 @@ public class InnerPageOperations {
 
         // The new entry will be the key, plus 2 bytes for the page-pointer.
         List<ColumnInfo> colInfos = page.getIndexFileInfo().getIndexSchema();
-        int newEntrySize = PageTuple.getTupleStorageSize(colInfos, key1) + 2;
+        int newEntrySize = PageTupleUtil.getTupleStorageSize(colInfos, key1) + 2;
 
         if (page.getFreeSpace() < newEntrySize) {
             // 先尝试着将重新分配空间，如果还是不够则将此页分裂为

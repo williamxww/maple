@@ -2,6 +2,7 @@ package com.bow.lab.storage.btree;
 
 import java.util.List;
 
+import com.bow.lab.storage.heap.PageTupleUtil;
 import com.bow.maple.expressions.TupleLiteral;
 import com.bow.maple.indexes.IndexFileInfo;
 import com.bow.maple.relations.ColumnInfo;
@@ -138,7 +139,7 @@ public class InnerPage {
         dbPage.writeShort(offset, pagePtr1);
         offset += 2;
         // 写key
-        offset = PageTuple.storeTuple(dbPage, offset, idxFileInfo.getIndexSchema(), key1);
+        offset = PageTupleUtil.storeTuple(dbPage, offset, idxFileInfo.getIndexSchema(), key1);
         // 写pageNo2
         dbPage.writeShort(offset, pagePtr2);
         dbPage.writeShort(OFFSET_NUM_POINTERS, 2);
@@ -275,7 +276,7 @@ public class InnerPage {
         int oldStart = keys[index].getOffset();
         int oldLen = keys[index].getEndOffset() - oldStart;
         List<ColumnInfo> colInfos = idxFileInfo.getIndexSchema();
-        int newLen = PageTuple.getTupleStorageSize(colInfos, key);
+        int newLen = PageTupleUtil.getTupleStorageSize(colInfos, key);
         if (newLen != oldLen) {
             // Need to adjust the amount of space the key takes.
             if (endOffset + newLen - oldLen > dbPage.getPageSize()) {
@@ -283,7 +284,7 @@ public class InnerPage {
             }
             dbPage.moveDataRange(oldStart + oldLen, oldStart + newLen, endOffset - oldStart - oldLen);
         }
-        PageTuple.storeTuple(dbPage, oldStart, colInfos, key);
+        PageTupleUtil.storeTuple(dbPage, oldStart, colInfos, key);
         // Reload the page contents.
         loadPageContents();
     }
@@ -325,7 +326,7 @@ public class InnerPage {
 
         // 计算新entry<key,pageNo>的大小
         List<ColumnInfo> colInfos = idxFileInfo.getIndexSchema();
-        int newKeySize = PageTuple.getTupleStorageSize(colInfos, key1);
+        int newKeySize = PageTupleUtil.getTupleStorageSize(colInfos, key1);
         int newEntrySize = newKeySize + 2;
         if (endOffset + newEntrySize > dbPage.getPageSize()) {
             throw new IllegalArgumentException(
@@ -338,7 +339,7 @@ public class InnerPage {
         }
 
         // 写入 new key/pointer values.
-        PageTuple.storeTuple(dbPage, oldKeyStart, colInfos, key1);
+        PageTupleUtil.storeTuple(dbPage, oldKeyStart, colInfos, key1);
         dbPage.writeShort(oldKeyStart + newKeySize, pagePtr2);
 
         // 更新entry总数
@@ -394,7 +395,7 @@ public class InnerPage {
         // However, this situation is only valid if the right sibling is EMPTY.
         int parentKeyLen = 0;
         if (parentKey != null) {
-            parentKeyLen = PageTuple.getTupleStorageSize(idxFileInfo.getIndexSchema(), parentKey);
+            parentKeyLen = PageTupleUtil.getTupleStorageSize(idxFileInfo.getIndexSchema(), parentKey);
         } else {
             if (leftSibling.getNumPointers() != 0) {
                 throw new IllegalStateException(
@@ -411,7 +412,7 @@ public class InnerPage {
 
         if (parentKey != null) {
             // Write in the parent key
-            PageTuple.storeTuple(leftSibling.dbPage, leftSibling.endOffset, idxFileInfo.getIndexSchema(), parentKey);
+            PageTupleUtil.storeTuple(leftSibling.dbPage, leftSibling.endOffset, idxFileInfo.getIndexSchema(), parentKey);
         }
 
         // Copy the pointer data across
@@ -507,7 +508,7 @@ public class InnerPage {
         // However, this situation is only valid if the right sibling is EMPTY.
         int parentKeyLen = 0;
         if (parentKey != null) {
-            parentKeyLen = PageTuple.getTupleStorageSize(idxFileInfo.getIndexSchema(), parentKey);
+            parentKeyLen = PageTupleUtil.getTupleStorageSize(idxFileInfo.getIndexSchema(), parentKey);
         } else {
             if (rightSibling.getNumPointers() != 0) {
                 throw new IllegalStateException(
@@ -530,7 +531,7 @@ public class InnerPage {
 
         if (parentKey != null) {
             // Write in the parent key
-            PageTuple.storeTuple(rightSibling.dbPage, OFFSET_FIRST_POINTER + len, idxFileInfo.getIndexSchema(),
+            PageTupleUtil.storeTuple(rightSibling.dbPage, OFFSET_FIRST_POINTER + len, idxFileInfo.getIndexSchema(),
                     parentKey);
         }
 

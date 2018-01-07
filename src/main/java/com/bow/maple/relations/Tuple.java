@@ -47,42 +47,32 @@ public interface Tuple {
 
 
     /**
-     * Returns a count of the number of columns in the tuple.
-     *
-     * @return a count of the number of columns in the tuple.
+     * 获取tuple的总列数
+     * @return
      */
     int getColumnCount();
 
 
     /**
-     * Returns <tt>true</tt> if the specified column's value is <tt>NULL</tt>.
-     *
-     * @param colIndex the index of the column to check for <tt>NULL</tt>ness.
-     *
-     * @return <tt>true</tt> if the specified column is <tt>NULL</tt>,
-     *         <tt>false</tt> otherwise.
+     * 判断指定列是否为NULL
+     * @param colIndex
+     * @return
      */
     boolean isNullValue(int colIndex);
 
 
     /**
-     * Returns the value of a column, or <tt>null</tt> if the column's SQL
-     * value is <tt>NULL</tt>.
-     *
-     * @param colIndex the index of the column to retrieve the value for
-     * @return the value of the column, or <tt>null</tt> if the column is
-     *         <tt>NULL</tt>.
+     * 获取指定列的值
+     * @param colIndex
+     * @return
      */
     Object getColumnValue(int colIndex);
 
 
     /**
-     * Sets the value of a column.  If <tt>null</tt> is passed, the column
-     * is set to the SQL <tt>NULL</tt> value.
-     *
-     * @param colIndex the index of the column to set the value for
-     * @param value the value to store for the column, or <tt>null</tt> if the
-     *        column should be set to <tt>NULL</tt>.
+     * 设置colIndex列的值为value
+     * @param colIndex 列号
+     * @param value 值
      */
     void setColumnValue(int colIndex, Object value);
 }
