@@ -5,19 +5,15 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import com.bow.lab.transaction.ITransactionService;
-import com.bow.maple.relations.SQLDataType;
-import com.bow.maple.relations.Schema;
-import com.bow.maple.storage.PageReader;
-import com.bow.maple.storage.PageTuple;
-import com.bow.maple.storage.heapfile.DataPage;
-import com.bow.maple.storage.heapfile.HeapFilePageTuple;
-import com.bow.maple.util.ExtensionLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.bow.lab.storage.heap.HeapPageStructure;
+import com.bow.lab.transaction.ITransactionService;
 import com.bow.maple.relations.ColumnInfo;
 import com.bow.maple.relations.ColumnType;
+import com.bow.maple.relations.SQLDataType;
+import com.bow.maple.relations.Schema;
 import com.bow.maple.relations.TableSchema;
 import com.bow.maple.relations.Tuple;
 import com.bow.maple.storage.DBFile;
@@ -25,9 +21,13 @@ import com.bow.maple.storage.DBFileType;
 import com.bow.maple.storage.DBPage;
 import com.bow.maple.storage.FilePointer;
 import com.bow.maple.storage.InvalidFilePointerException;
+import com.bow.maple.storage.PageReader;
+import com.bow.maple.storage.PageTuple;
 import com.bow.maple.storage.PageWriter;
 import com.bow.maple.storage.TableFileInfo;
 import com.bow.maple.storage.heapfile.HeaderPage;
+import com.bow.maple.storage.heapfile.HeapFilePageTuple;
+import com.bow.maple.util.ExtensionLoader;
 
 /**
  * @author vv
@@ -39,9 +39,15 @@ public class SimpleTableService implements ITableService {
 
     private static final int PAGE_SIZE = DBFile.DEFAULT_PAGESIZE;
 
-    private IStorageService storageService;
+    private IStorageService storageService = ExtensionLoader.getExtensionLoader(IStorageService.class).getExtension();
 
-    private ITransactionService txnService;
+    private ITransactionService txnService = ExtensionLoader.getExtensionLoader(ITransactionService.class)
+            .getExtension();
+
+    /**
+     * 页的数据结构
+     */
+    private IPageStructure pageStructure = ExtensionLoader.getExtensionLoader(IPageStructure.class).getExtension();
 
     /**
      * 已打开的表
@@ -51,11 +57,6 @@ public class SimpleTableService implements ITableService {
     public SimpleTableService(IStorageService storageService, ITransactionService txnService) {
         this.storageService = storageService;
         this.txnService = txnService;
-    }
-
-    public SimpleTableService() {
-        this.storageService = ExtensionLoader.getExtensionLoader(IStorageService.class).getExtension();
-        this.txnService = ExtensionLoader.getExtensionLoader(ITransactionService.class).getExtension();
     }
 
     /**
@@ -218,11 +219,11 @@ public class SimpleTableService implements ITableService {
             for (int iPage = 1; /* nothing */ ; iPage++) {
                 // 加载数据页
                 DBPage dbPage = storageService.loadDBPage(dbFile, iPage);
-                int numSlots = DataPage.getNumSlots(dbPage);
+                int numSlots = pageStructure.getNumSlots(dbPage);
                 for (int iSlot = 0; iSlot < numSlots; iSlot++) {
                     // 如果是空slot就继续找
-                    int offset = DataPage.getSlotValue(dbPage, iSlot);
-                    if (offset == DataPage.EMPTY_SLOT) {
+                    int offset = pageStructure.getSlotValue(dbPage, iSlot);
+                    if (offset == HeapPageStructure.EMPTY_SLOT) {
                         continue;
                     }
                     // 找到后，返回
@@ -266,11 +267,11 @@ public class SimpleTableService implements ITableService {
         // 找下一个tuple
         int nextSlot = heapTuple.getSlot() + 1;
         while (true) {
-            int numSlots = DataPage.getNumSlots(dbPage);
+            int numSlots = pageStructure.getNumSlots(dbPage);
             // 只要不是EMPTY_SLOT，找到就返回
             while (nextSlot < numSlots) {
-                int nextOffset = DataPage.getSlotValue(dbPage, nextSlot);
-                if (nextOffset != DataPage.EMPTY_SLOT) {
+                int nextOffset = pageStructure.getSlotValue(dbPage, nextSlot);
+                if (nextOffset != HeapPageStructure.EMPTY_SLOT) {
                     return new HeapFilePageTuple(tblFileInfo, dbPage, nextSlot, nextOffset);
                 }
                 nextSlot++;
@@ -308,14 +309,14 @@ public class SimpleTableService implements ITableService {
         // file-pointer指出了tuple对应slot的位置，slot里面放置了tuple的偏移量
         int slot;
         try {
-            slot = DataPage.getSlotIndexFromOffset(dbPage, fptr.getOffset());
+            slot = pageStructure.getSlotIndexFromOffset(dbPage, fptr.getOffset());
         } catch (IllegalArgumentException iae) {
             throw new InvalidFilePointerException(iae);
         }
 
         // 从slot中取出tuple的偏移量
-        int offset = DataPage.getSlotValue(dbPage, slot);
-        if (offset == DataPage.EMPTY_SLOT) {
+        int offset = pageStructure.getSlotValue(dbPage, slot);
+        if (offset == HeapPageStructure.EMPTY_SLOT) {
             throw new InvalidFilePointerException("Slot " + slot + " on page " + fptr.getPageNo() + " is empty.");
         }
 
@@ -359,12 +360,11 @@ public class SimpleTableService implements ITableService {
             try {
                 dbPage = storageService.loadDBPage(dbFile, pageNo);
             } catch (EOFException eofe) {
-                // 到文件尾部了，就跳出循环
-                // TODO: VV 难道不是抛出异常？
+                // 到文件尾部了，就跳出循环，后面统一新建页
                 LOGGER.debug("Reached end of data file without finding space for new tuple.");
                 break;
             }
-            int freeSpace = DataPage.getFreeSpaceInPage(dbPage);
+            int freeSpace = pageStructure.getFreeSpaceInPage(dbPage);
             LOGGER.trace("Page {} has {} bytes of free space.", pageNo, freeSpace);
             // 每个tuple还需要对应一个slot(2 Byte)
             if (freeSpace >= tupSize + 2) {
@@ -378,20 +378,20 @@ public class SimpleTableService implements ITableService {
             pageNo++;
         }
 
+        // 现有的页都放不下，因此新增加一页
         if (dbPage == null) {
             LOGGER.debug("Creating new page " + pageNo + " to store new tuple.");
             dbPage = storageService.loadDBPage(dbFile, pageNo, true);
-            DataPage.initNewPage(dbPage);
+            pageStructure.initNewPage(dbPage);
         }
 
-        int slot = DataPage.allocNewTuple(dbPage, tupSize);
-        int tupOffset = DataPage.getSlotValue(dbPage, slot);
-
+        //分配空间，将tuple放入
+        int slot = pageStructure.allocNewTuple(dbPage, tupSize);
+        int tupOffset = pageStructure.getSlotValue(dbPage, slot);
         LOGGER.debug("New tuple will reside on page {}, slot {}.", pageNo, slot);
-
         HeapFilePageTuple pageTup = HeapFilePageTuple.storeNewTuple(tblFileInfo, dbPage, slot, tupOffset, tup);
 
-        DataPage.sanityCheck(dbPage);
+        pageStructure.sanityCheck(dbPage);
         txnService.recordPageUpdate(dbPage);
         // TODO: Really shouldn't unpin the page; the caller will want it.
         // TODO: Maybe need to change how we do this to make unpinning easier.
@@ -415,7 +415,7 @@ public class SimpleTableService implements ITableService {
         }
 
         DBPage dbPage = heapTuple.getDBPage();
-        DataPage.sanityCheck(dbPage);
+        pageStructure.sanityCheck(dbPage);
         txnService.recordPageUpdate(dbPage);
         storageService.unpinDBPage(dbPage);
     }
@@ -429,9 +429,9 @@ public class SimpleTableService implements ITableService {
         HeapFilePageTuple heapTuple = (HeapFilePageTuple) tup;
 
         DBPage dbPage = heapTuple.getDBPage();
-        DataPage.deleteTuple(dbPage, heapTuple.getSlot());
+        pageStructure.deleteTuple(dbPage, heapTuple.getSlot());
 
-        DataPage.sanityCheck(dbPage);
+        pageStructure.sanityCheck(dbPage);
 
         txnService.recordPageUpdate(dbPage);
         storageService.unpinDBPage(dbPage);

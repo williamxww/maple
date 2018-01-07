@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.bow.lab.storage.heap.HeapPageStructure;
 import com.bow.maple.expressions.TupleLiteral;
 import com.bow.maple.relations.Tuple;
 import com.bow.maple.storage.FilePointer;
@@ -41,6 +42,9 @@ public class SimpleTableServiceTest extends AbstractTest {
         super.setup();
         txnService = ExtensionLoader.getExtensionLoader(ITransactionService.class).getExtension();
         txnService.initialize();
+        // 注入heap结构
+        IPageStructure heapStructure = new HeapPageStructure();
+        ExtensionLoader.getExtensionLoader(IPageStructure.class).putExtension(heapStructure);
         tableService = new SimpleTableService(storageService, txnService);
     }
 
@@ -74,8 +78,8 @@ public class SimpleTableServiceTest extends AbstractTest {
         // 获取此表的TableFileInfo
         TableFileInfo tblFileInfo = tableService.openTable(TABLE_NAME);
         TupleLiteral tuple = new TupleLiteral();
-        tuple.addValue(2);// id
-        tuple.addValue(27);// age
+        tuple.addValue(1);// id
+        tuple.addValue(28);// age
         txnService.startTransaction(true);
         tableService.addTuple(tblFileInfo, tuple);
         txnService.commitTransaction();
@@ -115,22 +119,28 @@ public class SimpleTableServiceTest extends AbstractTest {
         TableFileInfo tblFileInfo = tableService.openTable(TABLE_NAME);
         Tuple tuple = tableService.getFirstTuple(tblFileInfo);
         Map<String, Object> newValues = new HashMap<>();
-        newValues.put("id",1);
-        newValues.put("age",20);
+        newValues.put("id", 1);
+        newValues.put("age", 20);
 
         txnService.startTransaction(true);
         // 更新tuple
-        tableService.updateTuple(tblFileInfo, tuple,newValues);
+        tableService.updateTuple(tblFileInfo, tuple, newValues);
         txnService.commitTransaction();
         // 刷到磁盘
         tableService.closeTable(tblFileInfo);
     }
 
-
     @Test
     public void deleteTuple() throws Exception {
+        TableFileInfo tblFileInfo = tableService.openTable(TABLE_NAME);
+        Tuple tuple = tableService.getFirstTuple(tblFileInfo);
+        txnService.startTransaction(true);
+        // 删除tuple
+        tableService.deleteTuple(tblFileInfo, tuple);
+        txnService.commitTransaction();
+        // 刷到磁盘
+        tableService.closeTable(tblFileInfo);
 
     }
-
 
 }
