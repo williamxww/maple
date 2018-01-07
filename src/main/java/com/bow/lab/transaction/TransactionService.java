@@ -89,7 +89,7 @@ public class TransactionService implements ITransactionService {
         this.walService = new WALService(storageService);
     }
 
-    public TransactionService(){
+    public TransactionService() throws IOException {
         this.storageService = ExtensionLoader.getExtensionLoader(IStorageService.class).getExtension();
         this.nextTxnID = new AtomicInteger();
         this.walService = new WALService(storageService);
@@ -211,8 +211,9 @@ public class TransactionService implements ITransactionService {
         // 开启一个事务
         TransactionState txnState = SessionState.get().getTxnState();
         if (!txnState.hasLoggedTxnStart()) {
-            this.nextLsn = walService.writeTxnRecord(this.nextLsn, WALRecordType.START_TXN);
+            // 若此事务没有开启记录WAL日志，则开启
             txnState.setLoggedTxnStart(true);
+            this.nextLsn = walService.writeTxnRecord(this.nextLsn, WALRecordType.START_TXN);
         }
         this.nextLsn = walService.writeUpdateRecord(this.nextLsn, dbPage, txnState);
         dbPage.syncOldPageData();

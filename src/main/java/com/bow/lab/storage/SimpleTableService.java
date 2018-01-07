@@ -6,9 +6,13 @@ import java.util.HashMap;
 import java.util.Map;
 
 import com.bow.lab.transaction.ITransactionService;
+import com.bow.maple.relations.SQLDataType;
+import com.bow.maple.relations.Schema;
+import com.bow.maple.storage.PageReader;
 import com.bow.maple.storage.PageTuple;
 import com.bow.maple.storage.heapfile.DataPage;
 import com.bow.maple.storage.heapfile.HeapFilePageTuple;
+import com.bow.maple.util.ExtensionLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,11 +43,19 @@ public class SimpleTableService implements ITableService {
 
     private ITransactionService txnService;
 
+    /**
+     * 已打开的表
+     */
     private Map<String, TableFileInfo> openTables = new HashMap<String, TableFileInfo>();
 
     public SimpleTableService(IStorageService storageService, ITransactionService txnService) {
         this.storageService = storageService;
         this.txnService = txnService;
+    }
+
+    public SimpleTableService() {
+        this.storageService = ExtensionLoader.getExtensionLoader(IStorageService.class).getExtension();
+        this.txnService = ExtensionLoader.getExtensionLoader(ITransactionService.class).getExtension();
     }
 
     /**
@@ -98,6 +110,88 @@ public class SimpleTableService implements ITableService {
     }
 
     @Override
+    public TableFileInfo openTable(String tableName) throws IOException {
+
+        TableFileInfo tblFileInfo;
+        tblFileInfo = openTables.get(tableName);
+        if (tblFileInfo != null) {
+            // 之前已经打开就直接返回
+            return tblFileInfo;
+        }
+
+        // 从表结构文件中读取table file info
+        String tblFileName = getTableFileName(tableName);
+        DBFile dbFile = storageService.openDBFile(tblFileName);
+        DBFileType type = dbFile.getType();
+        LOGGER.debug("Opened DBFile for table {} at path {}. type:{}, page size:{}", tableName, dbFile.getDataFile(),
+                type, dbFile.getPageSize());
+        tblFileInfo = new TableFileInfo(tableName, dbFile);
+        openTables.put(tableName, tblFileInfo);
+
+        // 根据文件中的信息初始化tblFileInfo
+        loadTableInfo(tblFileInfo);
+        return tblFileInfo;
+    }
+
+    private void loadTableInfo(TableFileInfo tblFileInfo) throws IOException {
+
+        String tableName = tblFileInfo.getTableName();
+        DBFile dbFile = tblFileInfo.getDBFile();
+        DBPage headerPage = storageService.loadDBPage(dbFile, 0);
+        PageReader hpReader = new PageReader(headerPage);
+
+        // 从指定位置开始读取
+        hpReader.setPosition(HeaderPage.OFFSET_NCOLS);
+
+        // 获取总列数
+        int numCols = hpReader.readUnsignedByte();
+        LOGGER.debug("Table has " + numCols + " columns.");
+        if (numCols == 0)
+            throw new IOException("Table must have at least one column.");
+
+        // 设置table info中的schema
+        TableSchema schema = tblFileInfo.getSchema();
+        for (int iCol = 0; iCol < numCols; iCol++) {
+
+            // 获取列类型
+            byte sqlTypeID = hpReader.readByte();
+            SQLDataType baseType = SQLDataType.findType(sqlTypeID);
+            if (baseType == null) {
+                throw new IOException("Unrecognized SQL type " + sqlTypeID + " for column " + iCol);
+            }
+            ColumnType colType = new ColumnType(baseType);
+            if (colType.hasLength()) {
+                // CHAR and VARCHAR 需要存字段长度
+                colType.setLength(hpReader.readUnsignedShort());
+            }
+
+            // 获取列名
+            String colName = hpReader.readVarString255();
+            if (colName.length() == 0) {
+                throw new IOException("Name of column " + iCol + " is unspecified.");
+            }
+            // 校验名字是否合法
+            for (int iCh = 0; iCh < colName.length(); iCh++) {
+                char ch = colName.charAt(iCh);
+                if (iCh == 0 && !(Character.isLetter(ch) || ch == '_')
+                        || iCh > 0 && !(Character.isLetterOrDigit(ch) || ch == '_')) {
+                    throw new IOException(String.format(
+                            "Name of column " + "%d \"%s\" has an invalid character at index %d.", iCol, colName, iCh));
+                }
+            }
+
+            // 构造列信息
+            ColumnInfo colInfo = new ColumnInfo(colName, tableName, colType);
+            schema.addColumnInfo(colInfo);
+        }
+
+        // 设置表的统计信息
+        tblFileInfo.setStats(HeaderPage.getTableStats(headerPage, tblFileInfo));
+        // unpin page
+        storageService.unpinDBPage(headerPage);
+    }
+
+    @Override
     public void closeTable(TableFileInfo tblFileInfo) throws IOException {
 
         // Flush all open pages for the table.
@@ -114,24 +208,137 @@ public class SimpleTableService implements ITableService {
 
     @Override
     public Tuple getFirstTuple(TableFileInfo tblFileInfo) throws IOException {
-        return null;
-    }
+        if (tblFileInfo == null) {
+            throw new IllegalArgumentException("tblFileInfo cannot be null");
+        }
 
-    @Override
-    public Tuple getNextTuple(TableFileInfo tblFileInfo, Tuple tup) throws IOException {
-        return null;
-    }
+        DBFile dbFile = tblFileInfo.getDBFile();
+        try {
+            // 循环数据页，直至找到第一条记录为止
+            for (int iPage = 1; /* nothing */ ; iPage++) {
+                // 加载数据页
+                DBPage dbPage = storageService.loadDBPage(dbFile, iPage);
+                int numSlots = DataPage.getNumSlots(dbPage);
+                for (int iSlot = 0; iSlot < numSlots; iSlot++) {
+                    // 如果是空slot就继续找
+                    int offset = DataPage.getSlotValue(dbPage, iSlot);
+                    if (offset == DataPage.EMPTY_SLOT) {
+                        continue;
+                    }
+                    // 找到后，返回
+                    return new HeapFilePageTuple(tblFileInfo, dbPage, iSlot, offset);
+                }
 
-    @Override
-    public Tuple getTuple(TableFileInfo tblFileInfo, FilePointer fptr) throws InvalidFilePointerException, IOException {
+                // If we got here, the page has no tuples. Unpin the page.
+                storageService.unpinDBPage(dbPage);
+            }
+        } catch (EOFException e) {
+            // We ran out of pages. No tuples in the file!
+            LOGGER.debug("No tuples in table-file " + dbFile + ".  Returning null.");
+        }
         return null;
     }
 
     /**
-     * Find out how large the new tuple will be, so we can find a page to store
-     * it.<br/>
-     * Find a page with space for the new tuple.<br/>
-     * Generate the data necessary for storing the tuple into the file.
+     * <pre>
+     * Procedure:
+     * 1) Get slot index of current tuple.
+     * 2) If there are more slots in the current page, find the next non-empty slot.
+     * 3) If we get to the end of this page, go to the next page and try again.
+     * 4) If we get to the end of the file, we return null.
+     * </pre>
+     * 
+     * @param tblFileInfo 数据文件
+     * @param tup 当前tuple
+     * @return 下一个tuple
+     */
+    @Override
+    public Tuple getNextTuple(TableFileInfo tblFileInfo, Tuple tup) throws IOException {
+
+        if (!(tup instanceof HeapFilePageTuple)) {
+            throw new IllegalArgumentException("Tuple must be of type HeapFilePageTuple; got " + tup.getClass());
+        }
+        // 当前tuple
+        HeapFilePageTuple heapTuple = (HeapFilePageTuple) tup;
+        DBPage dbPage = heapTuple.getDBPage();
+        DBFile dbFile = dbPage.getDBFile();
+
+        // 找下一个tuple
+        int nextSlot = heapTuple.getSlot() + 1;
+        while (true) {
+            int numSlots = DataPage.getNumSlots(dbPage);
+            // 只要不是EMPTY_SLOT，找到就返回
+            while (nextSlot < numSlots) {
+                int nextOffset = DataPage.getSlotValue(dbPage, nextSlot);
+                if (nextOffset != DataPage.EMPTY_SLOT) {
+                    return new HeapFilePageTuple(tblFileInfo, dbPage, nextSlot, nextOffset);
+                }
+                nextSlot++;
+            }
+
+            // 到这里，说明当前页没有，接着从下一页的第一个tuple
+            try {
+                DBPage nextDBPage = storageService.loadDBPage(dbFile, dbPage.getPageNo() + 1);
+                storageService.unpinDBPage(dbPage);
+                // 从下一页的第一个继续
+                dbPage = nextDBPage;
+                nextSlot = 0;
+            } catch (EOFException e) {
+                // 到了文件末尾，没有更多tuple了
+                return null;
+            }
+        }
+    }
+
+    @Override
+    public Tuple getTuple(TableFileInfo tblFileInfo, FilePointer fptr) throws InvalidFilePointerException, IOException {
+        DBFile dbFile = tblFileInfo.getDBFile();
+        DBPage dbPage;
+
+        // 加载指定page
+        try {
+            dbPage = storageService.loadDBPage(dbFile, fptr.getPageNo());
+        } catch (EOFException eofe) {
+            // 将EOFException包装后抛出
+            throw new InvalidFilePointerException(
+                    "Specified page " + fptr.getPageNo() + " doesn't exist in file " + dbFile.getDataFile().getName(),
+                    eofe);
+        }
+
+        // file-pointer指出了tuple对应slot的位置，slot里面放置了tuple的偏移量
+        int slot;
+        try {
+            slot = DataPage.getSlotIndexFromOffset(dbPage, fptr.getOffset());
+        } catch (IllegalArgumentException iae) {
+            throw new InvalidFilePointerException(iae);
+        }
+
+        // 从slot中取出tuple的偏移量
+        int offset = DataPage.getSlotValue(dbPage, slot);
+        if (offset == DataPage.EMPTY_SLOT) {
+            throw new InvalidFilePointerException("Slot " + slot + " on page " + fptr.getPageNo() + " is empty.");
+        }
+
+        return new HeapFilePageTuple(tblFileInfo, dbPage, slot, offset);
+    }
+
+    /**
+     * <pre>
+     * |  2 B   |  2 B  |  2 B  |...
+     * |numSlots|slotVal|slotVal|...
+     * .............
+     * |nullFlag|tuple col1|tuple col2|
+     * </pre>
+     * 
+     * numSlots:总槽位数 <br/>
+     * slotVal: 其中存放的是tuple的Offset <br/>
+     * tuple的值是从page的末尾开始存放的，在存放tuple前会先放置nullFlag，每个bit代表此tuple在对应列是否为Null
+     * <br/>
+     *
+     * @param tblFileInfo the opened table to add the tuple to
+     * @param tup a tuple object containing the values to add to the table
+     * @return
+     * @throws IOException e
      */
     @Override
     public Tuple addTuple(TableFileInfo tblFileInfo, Tuple tup) throws IOException {
@@ -141,13 +348,11 @@ public class SimpleTableService implements ITableService {
         LOGGER.debug("Adding new tuple of size " + tupSize + " bytes.");
 
         // 确保一页能放下一个tuple，每个tuple还需要对应一个slot(2 Byte)
-        // The "+ 2" is for the case where we need a new slot entry as well.
         if (tupSize + 2 > dbFile.getPageSize()) {
             throw new IOException("Tuple size " + tupSize + " is larger than page size " + dbFile.getPageSize() + ".");
         }
 
-        // Search for a page to put the tuple in. If we hit the end of the
-        // data file, create a new page.
+        // 找到放置此tuple的数据页，不够就新建一个page
         int pageNo = 1;
         DBPage dbPage = null;
         while (true) {
@@ -155,6 +360,7 @@ public class SimpleTableService implements ITableService {
                 dbPage = storageService.loadDBPage(dbFile, pageNo);
             } catch (EOFException eofe) {
                 // 到文件尾部了，就跳出循环
+                // TODO: VV 难道不是抛出异常？
                 LOGGER.debug("Reached end of data file without finding space for new tuple.");
                 break;
             }
@@ -194,12 +400,41 @@ public class SimpleTableService implements ITableService {
 
     @Override
     public void updateTuple(TableFileInfo tblFileInfo, Tuple tup, Map<String, Object> newValues) throws IOException {
+        if (!(tup instanceof HeapFilePageTuple)) {
+            throw new IllegalArgumentException("Tuple must be of type HeapFilePageTuple; got " + tup.getClass());
+        }
+        HeapFilePageTuple heapTuple = (HeapFilePageTuple) tup;
 
+        // 根据schema将对应列的值换成新的
+        Schema schema = tblFileInfo.getSchema();
+        for (Map.Entry<String, Object> entry : newValues.entrySet()) {
+            String colName = entry.getKey();
+            Object value = entry.getValue();
+            int colIndex = schema.getColumnIndex(colName);
+            heapTuple.setColumnValue(colIndex, value);
+        }
+
+        DBPage dbPage = heapTuple.getDBPage();
+        DataPage.sanityCheck(dbPage);
+        txnService.recordPageUpdate(dbPage);
+        storageService.unpinDBPage(dbPage);
     }
 
     @Override
     public void deleteTuple(TableFileInfo tblFileInfo, Tuple tup) throws IOException {
 
+        if (!(tup instanceof HeapFilePageTuple)) {
+            throw new IllegalArgumentException("Tuple must be of type HeapFilePageTuple; got " + tup.getClass());
+        }
+        HeapFilePageTuple heapTuple = (HeapFilePageTuple) tup;
+
+        DBPage dbPage = heapTuple.getDBPage();
+        DataPage.deleteTuple(dbPage, heapTuple.getSlot());
+
+        DataPage.sanityCheck(dbPage);
+
+        txnService.recordPageUpdate(dbPage);
+        storageService.unpinDBPage(dbPage);
     }
 
     private String getTableFileName(String tableName) {

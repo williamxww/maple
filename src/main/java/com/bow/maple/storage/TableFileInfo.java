@@ -30,6 +30,7 @@ public class TableFileInfo {
 
 
     /** The table manager used to access this table file. */
+    @Deprecated
     private TableManager tableManager;
     
     
@@ -143,11 +144,17 @@ public class TableFileInfo {
     }
 
 
+    /**
+     * table file info只是一个数据结构，不应该持有服务
+     * @return
+     */
+    @Deprecated
     public TableManager getTableManager() {
         return tableManager;
     }
 
 
+    @Deprecated
     public void setTableManager(TableManager tableManager) {
         this.tableManager = tableManager;
     }

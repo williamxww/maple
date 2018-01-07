@@ -7,6 +7,7 @@ import com.bow.maple.relations.TableSchema;
 import com.bow.maple.storage.DBFileType;
 import com.bow.maple.storage.StorageManager;
 import com.bow.maple.storage.TableFileInfo;
+import com.bow.maple.util.ExtensionLoader;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -26,7 +27,7 @@ public class CreateTableCmd extends Command {
         super(Type.DDL);
     }
 
-    private ITableService tableService;
+    private ITableService tableService = ExtensionLoader.getExtensionLoader(ITableService.class).getExtension();
 
     @Override
     public void execute() throws ExecutionException {

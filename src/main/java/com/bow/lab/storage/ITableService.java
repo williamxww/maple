@@ -5,17 +5,37 @@ import java.io.IOException;
 import java.util.Map;
 
 import com.bow.maple.relations.Tuple;
-import com.bow.maple.storage.BlockedTableReader;
 import com.bow.maple.storage.FilePointer;
 import com.bow.maple.storage.InvalidFilePointerException;
 import com.bow.maple.storage.TableFileInfo;
 
-
+/**
+ * 数据级别的相关操作，如增删改查相关数据。
+ * @author vv
+ * @since 2017/11/8.
+ */
 public interface ITableService {
 
 
+    /**
+     * 根据TableFileInfo创建表文件
+     * @param tblFileInfo
+     * @throws IOException
+     */
     void createTable(TableFileInfo tblFileInfo) throws IOException;
 
+    /**
+     *
+     * @param tableName
+     * @return
+     * @throws IOException
+     */
+    TableFileInfo openTable(String tableName) throws IOException;
+    /**
+     *
+     * @param tblFileInfo
+     * @throws IOException
+     */
     void closeTable(TableFileInfo tblFileInfo) throws IOException;
     /**
      * Returns the first tuple in this table file, or <tt>null</tt> if there are
