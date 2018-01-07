@@ -11,12 +11,15 @@ import com.bow.maple.relations.Tuple;
 
 import com.bow.maple.relations.ColumnInfo;
 import com.bow.maple.relations.ColumnType;
+import com.bow.maple.storage.heapfile.HeapFilePageTuple;
 
 /**
  * PageTuple用于表示tuple在page中的存储<br/>
- * |null-bitmap|col1|col2|...
+ * |null-bitmap|col1|col2|... 注意此pageTuple没有slot的概念。{@link HeapFilePageTuple}
+ * 才有slot的概念
  * 
  * @see com.bow.maple.expressions.TupleLiteral tuple接口的简单实现
+ *
  *      <p>
  *      This class is a partial implementation of the {@link Tuple} interface
  *      that handles reading and writing tuple data against a {@link DBPage}
