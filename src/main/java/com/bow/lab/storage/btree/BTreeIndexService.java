@@ -6,6 +6,7 @@ import java.util.List;
 
 import com.bow.lab.storage.IIndexService;
 import com.bow.lab.storage.heap.PageTupleUtil;
+import com.bow.maple.util.ExtensionLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -14,7 +15,6 @@ import com.bow.maple.expressions.TupleComparator;
 import com.bow.maple.expressions.TupleLiteral;
 import com.bow.maple.indexes.IndexFileInfo;
 import com.bow.maple.indexes.IndexInfo;
-import com.bow.maple.indexes.IndexManager;
 import com.bow.maple.relations.ColumnIndexes;
 import com.bow.maple.relations.ColumnInfo;
 import com.bow.maple.relations.TableConstraintType;
@@ -73,7 +73,7 @@ public class BTreeIndexService implements IIndexService {
      */
     public static final boolean CLEAR_OLD_DATA = true;
 
-    private IStorageService storageManager;
+    private IStorageService storageService = ExtensionLoader.getExtensionLoader(IStorageService.class).getExtension();
 
     private LeafPageOperations leafPageOps;
 
@@ -83,18 +83,10 @@ public class BTreeIndexService implements IIndexService {
      * Initializes the heap-file table manager. This class shouldn't be
      * initialized directly, since the storage manager will initialize it when
      * necessary.
-     *
-     * @param storageManager the storage manager that is using this table
-     *        manager
-     *
      * @throws IllegalArgumentException if <tt>storageService</tt> is
      *         <tt>null</tt>
      */
-    public BTreeIndexService(IStorageService storageManager) {
-        if (storageManager == null) {
-            throw new IllegalArgumentException("storageService cannot be null");
-        }
-        this.storageManager = storageManager;
+    public BTreeIndexService() {
         innerPageOps = new InnerPageOperations(this);
         leafPageOps = new LeafPageOperations(this, innerPageOps);
     }
@@ -105,6 +97,7 @@ public class BTreeIndexService implements IIndexService {
      * @param idxFileInfo 索引信息
      * @return 名称前缀
      */
+    @Override
     public String getUnnamedIndexPrefix(IndexFileInfo idxFileInfo) {
         // Generate a prefix based on the contents of the IndexFileInfo object.
         IndexInfo info = idxFileInfo.getIndexInfo();
@@ -141,7 +134,7 @@ public class BTreeIndexService implements IIndexService {
         // The index's header page just stores details of the indexing structure
         // itself, since the the actual schema information and other index
         // details are stored in the referenced table.
-        DBPage headerPage = storageManager.loadDBPage(dbFile, 0);
+        DBPage headerPage = storageService.loadDBPage(dbFile, 0);
         HeaderPage.setRootPageNo(headerPage, 0);
         HeaderPage.setFirstLeafPageNo(headerPage, 0);
         HeaderPage.setFirstEmptyPageNo(headerPage, 0);
@@ -206,7 +199,7 @@ public class BTreeIndexService implements IIndexService {
 
         String indexName = idxFileInfo.getIndexName();
         DBFile dbFile = idxFileInfo.getDBFile();
-        DBPage dbpHeader = storageManager.loadDBPage(dbFile, 0);
+        DBPage dbpHeader = storageService.loadDBPage(dbFile, 0);
 
         // 从根开始找searchKey应该位于哪个叶子节点
         DBPage dbPage = getRootPage(idxFileInfo, createIfNeeded);
@@ -258,7 +251,7 @@ public class BTreeIndexService implements IIndexService {
             }
 
             // 加在下一页并记录path
-            dbPage = storageManager.loadDBPage(dbFile, nextPageNo);
+            dbPage = storageService.loadDBPage(dbFile, nextPageNo);
             pageType = dbPage.readByte(0);
             if (pageType != BTREE_INNER_PAGE && pageType != BTREE_LEAF_PAGE) {
                 throw new IOException("Invalid page type encountered:  " + pageType);
@@ -275,7 +268,7 @@ public class BTreeIndexService implements IIndexService {
 
         // 根据首页可以知道root page的起始位置
         DBFile dbFile = idxFileInfo.getDBFile();
-        DBPage dbpHeader = storageManager.loadDBPage(dbFile, 0);
+        DBPage dbpHeader = storageService.loadDBPage(dbFile, 0);
 
         // Get the root page of the index.
         int rootPageNo = HeaderPage.getRootPageNo(dbpHeader);
@@ -297,7 +290,7 @@ public class BTreeIndexService implements IIndexService {
             logger.debug("New root pageNo is " + rootPageNo);
         } else {
             // 索引已有rootPage了，加载它
-            dbpRoot = storageManager.loadDBPage(dbFile, rootPageNo);
+            dbpRoot = storageService.loadDBPage(dbFile, rootPageNo);
             logger.debug("Index " + idxFileInfo.getIndexName() + " root pageNo is " + rootPageNo);
         }
         return dbpRoot;
@@ -314,18 +307,18 @@ public class BTreeIndexService implements IIndexService {
         if (dbFile == null) {
             throw new IllegalArgumentException("dbFile cannot be null");
         }
-        DBPage dbpHeader = storageManager.loadDBPage(dbFile, 0);
+        DBPage dbpHeader = storageService.loadDBPage(dbFile, 0);
         DBPage newPage;
         int pageNo = HeaderPage.getFirstEmptyPageNo(dbpHeader);
         if (pageNo == 0) {
             // 没有空页，就创建一个
             logger.debug("No empty pages.  Extending index file " + dbFile + " by one page.");
             int numPages = dbFile.getNumPages();
-            newPage = storageManager.loadDBPage(dbFile, numPages, true);
+            newPage = storageService.loadDBPage(dbFile, numPages, true);
         } else {
             // 有空页就用，并将其从空页列表删除
             logger.debug("First empty page number is " + pageNo);
-            newPage = storageManager.loadDBPage(dbFile, pageNo);
+            newPage = storageService.loadDBPage(dbFile, pageNo);
             int nextEmptyPage = newPage.readUnsignedShort(1);
             HeaderPage.setFirstEmptyPageNo(dbpHeader, nextEmptyPage);
         }
@@ -345,7 +338,7 @@ public class BTreeIndexService implements IIndexService {
         DBFile dbFile = dbPage.getDBFile();
         // 将页类型改为空页
         dbPage.writeByte(0, BTREE_EMPTY_PAGE);
-        DBPage dbpHeader = storageManager.loadDBPage(dbFile, 0);
+        DBPage dbpHeader = storageService.loadDBPage(dbFile, 0);
         // 取出当前第一个空页的页号，设置到此页上
         int prevEmptyPageNo = HeaderPage.getFirstEmptyPageNo(dbpHeader);
         dbPage.writeShort(1, prevEmptyPageNo);

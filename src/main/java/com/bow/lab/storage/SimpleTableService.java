@@ -5,11 +5,12 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import com.bow.lab.storage.heap.PageTupleUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.bow.lab.storage.heap.HeapPageStructure;
+import com.bow.lab.storage.heap.HeapPageTuple;
+import com.bow.lab.storage.heap.PageTupleUtil;
 import com.bow.lab.transaction.ITransactionService;
 import com.bow.maple.relations.ColumnInfo;
 import com.bow.maple.relations.ColumnType;
@@ -23,11 +24,9 @@ import com.bow.maple.storage.DBPage;
 import com.bow.maple.storage.FilePointer;
 import com.bow.maple.storage.InvalidFilePointerException;
 import com.bow.maple.storage.PageReader;
-import com.bow.maple.storage.PageTuple;
 import com.bow.maple.storage.PageWriter;
 import com.bow.maple.storage.TableFileInfo;
 import com.bow.maple.storage.heapfile.HeaderPage;
-import com.bow.maple.storage.heapfile.HeapFilePageTuple;
 import com.bow.maple.util.ExtensionLoader;
 
 /**
@@ -228,7 +227,7 @@ public class SimpleTableService implements ITableService {
                         continue;
                     }
                     // 找到后，返回
-                    return new HeapFilePageTuple(tblFileInfo, dbPage, iSlot, offset);
+                    return new HeapPageTuple(tblFileInfo, dbPage, iSlot, offset);
                 }
 
                 // If we got here, the page has no tuples. Unpin the page.
@@ -257,11 +256,11 @@ public class SimpleTableService implements ITableService {
     @Override
     public Tuple getNextTuple(TableFileInfo tblFileInfo, Tuple tup) throws IOException {
 
-        if (!(tup instanceof HeapFilePageTuple)) {
-            throw new IllegalArgumentException("Tuple must be of type HeapFilePageTuple; got " + tup.getClass());
+        if (!(tup instanceof HeapPageTuple)) {
+            throw new IllegalArgumentException("Tuple must be of type HeapPageTuple; got " + tup.getClass());
         }
         // 当前tuple
-        HeapFilePageTuple heapTuple = (HeapFilePageTuple) tup;
+        HeapPageTuple heapTuple = (HeapPageTuple) tup;
         DBPage dbPage = heapTuple.getDBPage();
         DBFile dbFile = dbPage.getDBFile();
 
@@ -273,7 +272,7 @@ public class SimpleTableService implements ITableService {
             while (nextSlot < numSlots) {
                 int nextOffset = pageStructure.getSlotValue(dbPage, nextSlot);
                 if (nextOffset != HeapPageStructure.EMPTY_SLOT) {
-                    return new HeapFilePageTuple(tblFileInfo, dbPage, nextSlot, nextOffset);
+                    return new HeapPageTuple(tblFileInfo, dbPage, nextSlot, nextOffset);
                 }
                 nextSlot++;
             }
@@ -321,7 +320,7 @@ public class SimpleTableService implements ITableService {
             throw new InvalidFilePointerException("Slot " + slot + " on page " + fptr.getPageNo() + " is empty.");
         }
 
-        return new HeapFilePageTuple(tblFileInfo, dbPage, slot, offset);
+        return new HeapPageTuple(tblFileInfo, dbPage, slot, offset);
     }
 
     /**
@@ -390,7 +389,7 @@ public class SimpleTableService implements ITableService {
         int slot = pageStructure.allocNewTuple(dbPage, tupSize);
         int tupOffset = pageStructure.getSlotValue(dbPage, slot);
         LOGGER.debug("New tuple will reside on page {}, slot {}.", pageNo, slot);
-        HeapFilePageTuple pageTup = HeapFilePageTuple.storeNewTuple(tblFileInfo, dbPage, slot, tupOffset, tup);
+        Tuple pageTup = pageStructure.storeNewTuple(tblFileInfo, dbPage, slot, tupOffset, tup);
 
         pageStructure.sanityCheck(dbPage);
         txnService.recordPageUpdate(dbPage);
@@ -401,10 +400,10 @@ public class SimpleTableService implements ITableService {
 
     @Override
     public void updateTuple(TableFileInfo tblFileInfo, Tuple tup, Map<String, Object> newValues) throws IOException {
-        if (!(tup instanceof HeapFilePageTuple)) {
-            throw new IllegalArgumentException("Tuple must be of type HeapFilePageTuple; got " + tup.getClass());
+        if (!(tup instanceof HeapPageTuple)) {
+            throw new IllegalArgumentException("Tuple must be of type HeapPageTuple; got " + tup.getClass());
         }
-        HeapFilePageTuple heapTuple = (HeapFilePageTuple) tup;
+        HeapPageTuple heapTuple = (HeapPageTuple) tup;
 
         // 根据schema将对应列的值换成新的
         Schema schema = tblFileInfo.getSchema();
@@ -424,10 +423,10 @@ public class SimpleTableService implements ITableService {
     @Override
     public void deleteTuple(TableFileInfo tblFileInfo, Tuple tup) throws IOException {
 
-        if (!(tup instanceof HeapFilePageTuple)) {
-            throw new IllegalArgumentException("Tuple must be of type HeapFilePageTuple; got " + tup.getClass());
+        if (!(tup instanceof HeapPageTuple)) {
+            throw new IllegalArgumentException("Tuple must be of type HeapPageTuple; got " + tup.getClass());
         }
-        HeapFilePageTuple heapTuple = (HeapFilePageTuple) tup;
+        HeapPageTuple heapTuple = (HeapPageTuple) tup;
 
         DBPage dbPage = heapTuple.getDBPage();
         pageStructure.deleteTuple(dbPage, heapTuple.getSlot());

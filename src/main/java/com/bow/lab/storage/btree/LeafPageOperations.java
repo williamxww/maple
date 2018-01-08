@@ -25,14 +25,14 @@ public class LeafPageOperations {
 
     private static Logger logger = LoggerFactory.getLogger(LeafPageOperations.class);
 
-    private IStorageService storageManager = ExtensionLoader.getExtensionLoader(IStorageService.class).getExtension();
+    private IStorageService storageService = ExtensionLoader.getExtensionLoader(IStorageService.class).getExtension();
 
-    private BTreeIndexService bTreeManager;
+    private BTreeIndexService bTreeIndexService;
 
     private InnerPageOperations innerPageOps;
 
     public LeafPageOperations(BTreeIndexService bTreeManager, InnerPageOperations innerPageOps) {
-        this.bTreeManager = bTreeManager;
+        this.bTreeIndexService = bTreeManager;
         this.innerPageOps = innerPageOps;
     }
 
@@ -49,7 +49,7 @@ public class LeafPageOperations {
             return null;
         }
         DBFile dbFile = idxFileInfo.getDBFile();
-        DBPage dbPage = storageManager.loadDBPage(dbFile, pageNo);
+        DBPage dbPage = storageService.loadDBPage(dbFile, pageNo);
         return new LeafPage(dbPage, idxFileInfo);
     }
 
@@ -309,7 +309,7 @@ public class LeafPageOperations {
         // 获取一个空页作为新叶子节点
         IndexFileInfo idxFileInfo = leaf.getIndexFileInfo();
         DBFile dbFile = idxFileInfo.getDBFile();
-        DBPage newDBPage = bTreeManager.getNewDataPage(dbFile);
+        DBPage newDBPage = bTreeIndexService.getNewDataPage(dbFile);
         LeafPage newLeaf = LeafPage.init(newDBPage, idxFileInfo);
 
         // 新建的leaf始终跟在本页后面
@@ -340,17 +340,17 @@ public class LeafPageOperations {
         // 只有一页
         if (pathSize == 1) {
             // 创建一个root节点作为leaf和newLeaf的父节点
-            DBPage parentPage = bTreeManager.getNewDataPage(dbFile);
+            DBPage parentPage = bTreeIndexService.getNewDataPage(dbFile);
             InnerPage.init(parentPage, idxFileInfo, leaf.getPageNo(), firstRightKey, newLeaf.getPageNo());
             int parentPageNo = parentPage.getPageNo();
             // 在首页中记录根页
-            DBPage dbpHeader = storageManager.loadDBPage(dbFile, 0);
+            DBPage dbpHeader = storageService.loadDBPage(dbFile, 0);
             HeaderPage.setRootPageNo(dbpHeader, parentPageNo);
             logger.debug("Set index root-page to inner-page " + parentPageNo);
         } else {
             // 获取leaf的父页，然后将(pageNo, key, pageNo)写入父页
             int parentPageNo = pagePath.get(pathSize - 2);
-            DBPage dbpParent = storageManager.loadDBPage(dbFile, parentPageNo);
+            DBPage dbpParent = storageService.loadDBPage(dbFile, parentPageNo);
             InnerPage parentPage = new InnerPage(dbpParent, idxFileInfo);
             pagePath.remove(pathSize - 1);
             innerPageOps.addEntry(parentPage, pagePath, leaf.getPageNo(), firstRightKey, newLeaf.getPageNo());

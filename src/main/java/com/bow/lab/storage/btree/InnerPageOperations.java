@@ -11,8 +11,6 @@ import com.bow.maple.relations.ColumnInfo;
 import com.bow.maple.relations.Tuple;
 import com.bow.maple.storage.DBFile;
 import com.bow.maple.storage.DBPage;
-import com.bow.maple.storage.PageTuple;
-import com.bow.maple.storage.StorageManager;
 import com.bow.maple.storage.btreeindex.BTreeIndexPageTuple;
 import com.bow.maple.storage.btreeindex.HeaderPage;
 import org.slf4j.Logger;
@@ -28,12 +26,12 @@ public class InnerPageOperations {
 
     private static Logger logger = LoggerFactory.getLogger(InnerPageOperations.class);
 
-    private IStorageService storageManager;
+    private IStorageService storageService;
 
-    private BTreeIndexService bTreeManager;
+    private BTreeIndexService bTreeIndexService;
 
     public InnerPageOperations(BTreeIndexService bTreeManager) {
-        this.bTreeManager = bTreeManager;
+        this.bTreeIndexService = bTreeManager;
     }
 
     /**
@@ -49,7 +47,7 @@ public class InnerPageOperations {
             return null;
         }
         DBFile dbFile = idxFileInfo.getDBFile();
-        DBPage dbPage = storageManager.loadDBPage(dbFile, pageNo);
+        DBPage dbPage = storageService.loadDBPage(dbFile, pageNo);
         return new InnerPage(dbPage, idxFileInfo);
     }
 
@@ -358,7 +356,7 @@ public class InnerPageOperations {
 
         IndexFileInfo idxFileInfo = page.getIndexFileInfo();
         DBFile dbFile = idxFileInfo.getDBFile();
-        DBPage newDBPage = bTreeManager.getNewDataPage(dbFile);
+        DBPage newDBPage = bTreeIndexService.getNewDataPage(dbFile);
         InnerPage newPage = InnerPage.init(newDBPage, idxFileInfo);
 
         // Figure out how many values we want to move from the old page to the
@@ -401,13 +399,13 @@ public class InnerPageOperations {
         if (parentPageNo == 0) {
             // Create a new root node and set both leaves to have it as their
             // parent.
-            DBPage dbpParent = bTreeManager.getNewDataPage(dbFile);
+            DBPage dbpParent = bTreeIndexService.getNewDataPage(dbFile);
             parentPage = InnerPage.init(dbpParent, idxFileInfo, page.getPageNo(), newParentKey, newPage.getPageNo());
 
             parentPageNo = parentPage.getPageNo();
 
             // We have a new root-page in the index!
-            DBPage dbpHeader = storageManager.loadDBPage(dbFile, 0);
+            DBPage dbpHeader = storageService.loadDBPage(dbFile, 0);
             HeaderPage.setRootPageNo(dbpHeader, parentPageNo);
 
             logger.debug("Set index root-page to inner-page " + parentPageNo);

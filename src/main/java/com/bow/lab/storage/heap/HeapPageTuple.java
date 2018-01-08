@@ -1,21 +1,16 @@
-package com.bow.maple.storage.heapfile;
+package com.bow.lab.storage.heap;
 
 import com.bow.lab.storage.IPageStructure;
-import com.bow.lab.storage.heap.PageTupleUtil;
-import com.bow.maple.relations.Tuple;
 import com.bow.maple.storage.DBPage;
 import com.bow.maple.storage.FilePointer;
 import com.bow.maple.storage.PageTuple;
-import com.bow.maple.relations.ColumnInfo;
-
 import com.bow.maple.storage.TableFileInfo;
 import com.bow.maple.util.ExtensionLoader;
 
-import java.util.List;
-
 /**
+ * 在PageTuple的基础上扩展了 slot字段
  */
-public class HeapFilePageTuple extends PageTuple {
+public class HeapPageTuple extends PageTuple {
 
     /**
      * heap page的存储结构
@@ -36,7 +31,7 @@ public class HeapFilePageTuple extends PageTuple {
      * @param slot the slot number of the tuple
      * @param pageOffset the offset of the tuple's actual data in the page
      */
-    public HeapFilePageTuple(TableFileInfo tblFileInfo, DBPage dbPage, int slot, int pageOffset) {
+    public HeapPageTuple(TableFileInfo tblFileInfo, DBPage dbPage, int slot, int pageOffset) {
         super(dbPage, pageOffset, tblFileInfo.getSchema().getColumnInfos());
         if (slot < 0) {
             throw new IllegalArgumentException("slot must be nonnegative; got " + slot);
@@ -55,24 +50,17 @@ public class HeapFilePageTuple extends PageTuple {
         return new FilePointer(getDBPage().getPageNo(), pageStructure.getSlotOffset(slot));
     }
 
+    @Override
     protected void insertTupleDataRange(int off, int len) {
         pageStructure.insertTupleDataRange(this.getDBPage(), off, len);
     }
 
+    @Override
     protected void deleteTupleDataRange(int off, int len) {
         pageStructure.deleteTupleDataRange(this.getDBPage(), off, len);
     }
 
     public int getSlot() {
         return slot;
-    }
-
-    public static HeapFilePageTuple storeNewTuple(TableFileInfo tblInfo, DBPage dbPage, int slot, int pageOffset,
-            Tuple tuple) {
-
-        List<ColumnInfo> colInfos = tblInfo.getSchema().getColumnInfos();
-        PageTupleUtil.storeTuple(dbPage, pageOffset, colInfos, tuple);
-
-        return new HeapFilePageTuple(tblInfo, dbPage, slot, pageOffset);
     }
 }

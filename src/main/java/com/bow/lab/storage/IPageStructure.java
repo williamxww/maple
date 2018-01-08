@@ -1,6 +1,9 @@
 package com.bow.lab.storage;
 
+import com.bow.lab.storage.heap.HeapPageTuple;
+import com.bow.maple.relations.Tuple;
 import com.bow.maple.storage.DBPage;
+import com.bow.maple.storage.TableFileInfo;
 
 /**
  * 此类用于数据页的管理，主要体现在数据在DBPage上的结构
@@ -48,6 +51,8 @@ public interface IPageStructure {
 
     int allocNewTuple(DBPage dbPage, int len);
 
+
+
     /**
      * 删除指定的tuple
      *
@@ -66,6 +71,18 @@ public interface IPageStructure {
     int getTupleLength(DBPage dbPage, int slot);
 
     //-------------------------------上面的为公有，下面的为heapPageStructure特有---------
+
+    /**
+     * 将指定tuple放置到page的指定位置上
+     * @param tblInfo
+     * @param dbPage
+     * @param slot
+     * @param pageOffset
+     * @param tuple
+     * @return
+     */
+    Tuple storeNewTuple(TableFileInfo tblInfo, DBPage dbPage, int slot, int pageOffset,
+                        Tuple tuple);
     /**
      * 获取总slot 数量
      *

@@ -1,10 +1,15 @@
 package com.bow.lab.storage.heap;
 
 import com.bow.lab.storage.IPageStructure;
+import com.bow.maple.relations.ColumnInfo;
+import com.bow.maple.relations.Tuple;
 import com.bow.maple.storage.DBPage;
+import com.bow.maple.storage.TableFileInfo;
 import com.bow.maple.storage.heapfile.DataPage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.List;
 
 /**
  * slot从前往后增加，tuple从页末往前增长。 slot1中存储了tuple1的偏移量。
@@ -386,6 +391,13 @@ public class HeapPageStructure implements IPageStructure {
         setSlotValue(dbPage, slot, newTupleStart);
         // 返回slot号
         return slot;
+    }
+
+    @Override
+    public HeapPageTuple storeNewTuple(TableFileInfo tblInfo, DBPage dbPage, int slot, int pageOffset, Tuple tuple) {
+        List<ColumnInfo> colInfos = tblInfo.getSchema().getColumnInfos();
+        PageTupleUtil.storeTuple(dbPage, pageOffset, colInfos, tuple);
+        return new HeapPageTuple(tblInfo, dbPage, slot, pageOffset);
     }
 
     /**

@@ -51,9 +51,7 @@ public interface IIndexService {
      * into the index.
      *
      * @param idxFileInfo the index to add the tuple to
-     *
      * @param tup the tuple to add to the index
-     *
      * @throws IOException if an IO error occurs when attempting to add the
      *         tuple.
      */
@@ -66,9 +64,7 @@ public interface IIndexService {
      * from the index.
      *
      * @param idxFileInfo the index to delete the tuple from
-     *
      * @param tup the tuple to delete from the index
-     *
      * @throws IOException if an IO error occurs when attempting to delete the
      *         tuple.
      */
@@ -80,7 +76,6 @@ public interface IIndexService {
      * contents.
      *
      * @param idxFileInfo the index to verify
-     *
      * @throws IOException if an IO error occurs while verifying the index
      */
     List<String> verifyIndex(IndexFileInfo idxFileInfo) throws IOException;

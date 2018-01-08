@@ -8,12 +8,12 @@ import com.bow.maple.relations.TableConstraintType;
 
 
 /**
- * This class holds all details of an index within the database.
- *
- * @review (Donnie) Maybe rename this to IndexDesc
+ * 索引详细信息
  */
 public class IndexInfo {
-    /** The general type of index. */
+    /**
+     * 索引类型：hash index, order index, bitmap index
+     */
     private IndexType type;
 
 
@@ -26,8 +26,7 @@ public class IndexInfo {
 
 
     /**
-     * If this index was created to enforce a particular table constraint, this
-     * field specifies the kind of constraint it is used to enforce.
+     * 约束类型：主键，外键等
      */
     private TableConstraintType constraintType;
 
@@ -39,7 +38,9 @@ public class IndexInfo {
     private boolean unique;
 
 
-    /** The table columns that the index is built against. */
+    /**
+     * 索引所在的列
+     */
     private ColumnIndexes columnIndexes;
 
 
