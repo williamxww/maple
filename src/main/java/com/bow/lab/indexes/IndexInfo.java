@@ -1,4 +1,4 @@
-package com.bow.maple.indexes;
+package com.bow.lab.indexes;
 
 
 import com.bow.maple.relations.ColumnIndexes;

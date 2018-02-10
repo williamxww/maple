@@ -1,11 +1,17 @@
 package com.bow.lab.storage.btree;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 
+import com.bow.lab.indexes.IndexManager;
+import com.bow.lab.storage.IFileService;
 import com.bow.lab.storage.IIndexService;
 import com.bow.lab.storage.heap.PageTupleUtil;
+import com.bow.maple.storage.DBFileType;
+import com.bow.maple.storage.TableFileInfo;
 import com.bow.maple.util.ExtensionLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,8 +19,8 @@ import org.slf4j.LoggerFactory;
 import com.bow.lab.storage.IStorageService;
 import com.bow.maple.expressions.TupleComparator;
 import com.bow.maple.expressions.TupleLiteral;
-import com.bow.maple.indexes.IndexFileInfo;
-import com.bow.maple.indexes.IndexInfo;
+import com.bow.lab.indexes.IndexFileInfo;
+import com.bow.lab.indexes.IndexInfo;
 import com.bow.maple.relations.ColumnIndexes;
 import com.bow.maple.relations.ColumnInfo;
 import com.bow.maple.relations.TableConstraintType;
@@ -23,7 +29,6 @@ import com.bow.maple.storage.DBPage;
 import com.bow.maple.storage.PageTuple;
 import com.bow.maple.storage.btreeindex.BTreeIndexPageTuple;
 import com.bow.maple.storage.btreeindex.BTreeIndexVerifier;
-import com.bow.maple.storage.btreeindex.HeaderPage;
 
 /**
  * <p>
@@ -75,10 +80,19 @@ public class BTreeIndexService implements IIndexService {
 
     private IStorageService storageService = ExtensionLoader.getExtensionLoader(IStorageService.class).getExtension();
 
+    private IFileService fileService = ExtensionLoader.getExtensionLoader(IFileService.class).getExtension();
     private LeafPageOperations leafPageOps;
 
     private InnerPageOperations innerPageOps;
 
+    /**
+     * An internal cache of what indexes are currently open in the database.
+     * This keeps us from having to reload index details every time someone
+     * wants to access an index, and it also allows us to know what indexes
+     * need to be closed.
+     */
+    private HashMap<String, IndexFileInfo> openIndexes =
+            new HashMap<String, IndexFileInfo>();
     /**
      * Initializes the heap-file table manager. This class shouldn't be
      * initialized directly, since the storage manager will initialize it when
@@ -371,5 +385,160 @@ public class BTreeIndexService implements IIndexService {
         int storageSize = PageTupleUtil.getTupleStorageSize(colInfos, newKeyVal);
         newKeyVal.setStorageSize(storageSize);
         return newKeyVal;
+    }
+
+
+
+    /*========================================================================
+     * CODE RELATED TO INDEX FILES
+     */
+    public void dropIndex(TableFileInfo tblFileInfo, String indexName)
+            throws IOException {
+
+
+    }
+
+    /**
+     * This method takes an index name and returns a filename string that
+     * specifies where the index's data is stored.
+     *
+     * @param indexName the name of the index to get the filename of
+     *
+     * @return the name of the file that holds the index's data
+     */
+    private String getIndexFileName(String indexName) {
+        return indexName + ".idx";
+    }
+
+
+    /**
+     * Creates a new index file with the index name, table name, and column list
+     * specified in the passed-in <tt>IndexFileInfo</tt> object.  Additional
+     * details such as the data file and the index manager are stored into the
+     * passed-in <tt>IndexFileInfo</tt> object upon successful creation of the
+     * new index.
+     *
+     * @param idxFileInfo This object is an in/out parameter.  It is used to
+     *        specify the name and details of the new index being created.  When
+     *        the index is successfully created, the object is updated with the
+     *        actual file that the index is stored in.
+     *
+     * @throws IOException if the file cannot be created, or if an error occurs
+     *         while storing the initial index data.
+     */
+    @Override
+    public void createIndex(IndexFileInfo idxFileInfo) throws IOException {
+        String indexName = idxFileInfo.getTableName();
+        String idxFileName = getIndexFileName(indexName);
+
+        DBFileType type = idxFileInfo.getIndexType();
+
+        DBFile dbFile = storageService.createDBFile(idxFileName, type, DBFile.DEFAULT_PAGESIZE);
+        logger.debug("Created new DBFile for index " + indexName +
+                " at path " + dbFile.getDataFile());
+
+        // Cache this index since it's now considered "open".
+        openIndexes.put(idxFileInfo.getTableName(), idxFileInfo);
+        idxFileInfo.setDBFile(dbFile);
+        initIndexInfo(idxFileInfo);
+    }
+
+    @Override
+    public void createUnnamedIndex(IndexFileInfo idxFileInfo) throws IOException {
+        DBFileType type = idxFileInfo.getIndexType();
+        String baseDir = fileService.getBaseDir().getPath();
+        // Figure out an index name and filename for the unnamed index.  Primary
+        // keys are handled separately, since each table only has one primary
+        // key.  All other indexes are named by concatenating a prefix with a
+        // numeric value that makes the index's name unique.
+        File f;
+        String indexName, indexFilename;
+        String prefix = getUnnamedIndexPrefix(idxFileInfo);
+        if (idxFileInfo.getIndexInfo().getConstraintType() ==
+                TableConstraintType.PRIMARY_KEY) {
+
+            indexName = prefix;
+            indexFilename = getIndexFileName(indexName);
+            f = new File(baseDir, indexFilename);
+            if (!f.createNewFile()) {
+                throw new IOException("Couldn't create file " + f +
+                        " for primary-key index " + indexName);
+            }
+        }
+        else {
+            String pattern = prefix + "_%03d";
+            int i = 1;
+            do {
+                indexName = String.format(pattern, i);
+                indexFilename = getIndexFileName(indexName);
+                f = new File(baseDir, indexFilename);
+                i++;
+            }
+            while (!f.createNewFile());
+        }
+        idxFileInfo.setIndexName(indexName);
+
+        DBFile dbFile = fileService.initDBFile(f, type, DBFile.DEFAULT_PAGESIZE);
+        logger.debug("Created new DBFile for unnamed index " + indexName +
+                " at path " + dbFile.getDataFile());
+
+        // Cache this index since it's now considered "open".
+        openIndexes.put(idxFileInfo.getTableName(), idxFileInfo);
+        idxFileInfo.setDBFile(dbFile);
+        initIndexInfo(idxFileInfo);
+    }
+
+
+    /**
+     * This method opens the data file corresponding to the specified index
+     * name and reads in the index's details.  If the index is already open
+     * then the cached data is simply returned.
+     *
+     * @param tblFileInfo the table that the index is defined on
+     *
+     * @param indexName the name of the index to open.  Indexes are not
+     *        referenced directly except by CREATE/ALTER/DROP INDEX statements,
+     *        so these index names are stored in the table schema files, and are
+     *        generally opened when the optimizer needs to know what indexes are
+     *        available.
+     *
+     * @return an object representing the details of the open index
+     *
+     * @throws java.io.FileNotFoundException if no index-file exists for the
+     *         index; in other words, it doesn't yet exist.
+     *
+     * @throws IOException if an IO error occurs when attempting to open the
+     *         index.
+     */
+    @Override
+    public IndexFileInfo openIndex(TableFileInfo tblFileInfo, String indexName)
+            throws IOException {
+
+        IndexFileInfo idxFileInfo;
+
+        // If the index is already open, just return the cached information.
+        idxFileInfo = openIndexes.get(indexName);
+        if (idxFileInfo != null)
+            return idxFileInfo;
+
+        // Open the data file for the index; read out its type and page-size.
+
+        String idxFileName = getIndexFileName(indexName);
+        DBFile dbFile = storageService.openDBFile(idxFileName);
+        DBFileType type = dbFile.getType();
+        logger.debug(String.format("Opened DBFile for index %s at path %s.",
+                indexName, dbFile.getDataFile()));
+        logger.debug(String.format("Type is %s, page size is %d bytes.",
+                type, dbFile.getPageSize()));
+
+        idxFileInfo = new IndexFileInfo(indexName, tblFileInfo, dbFile);
+        // Cache this index since it's now considered "open".
+        openIndexes.put(indexName, idxFileInfo);
+
+        // Defer to the appropriate index-manager to read in the remainder of
+        // the details.
+        loadIndexInfo(idxFileInfo);
+
+        return idxFileInfo;
     }
 }

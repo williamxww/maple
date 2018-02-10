@@ -10,10 +10,9 @@ import com.bow.maple.storage.DBFile;
 import org.apache.log4j.Logger;
 
 import com.bow.maple.expressions.TupleLiteral;
-import com.bow.maple.indexes.IndexFileInfo;
+import com.bow.lab.indexes.IndexFileInfo;
 import com.bow.maple.relations.ColumnInfo;
 import com.bow.maple.storage.DBPage;
-import com.bow.maple.storage.PageTuple;
 import com.bow.maple.storage.StorageManager;
 
 

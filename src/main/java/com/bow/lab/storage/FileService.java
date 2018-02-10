@@ -310,4 +310,9 @@ public class FileService implements IFileService {
             throw new IOException("Couldn't delete file \"" + f.getName() + "\".");
         }
     }
+
+    @Override
+    public File getBaseDir() {
+        return baseDir;
+    }
 }

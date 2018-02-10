@@ -1,7 +1,7 @@
 package com.bow.maple.commands;
 
-import com.bow.maple.indexes.IndexFileInfo;
-import com.bow.maple.indexes.IndexInfo;
+import com.bow.lab.indexes.IndexFileInfo;
+import com.bow.lab.indexes.IndexInfo;
 import com.bow.maple.relations.TableSchema;
 import com.bow.maple.storage.StorageManager;
 import com.bow.maple.storage.TableFileInfo;

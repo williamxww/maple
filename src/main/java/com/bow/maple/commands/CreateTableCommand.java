@@ -10,8 +10,8 @@ import java.util.List;
 import com.bow.maple.relations.TableSchema;
 import org.apache.log4j.Logger;
 
-import com.bow.maple.indexes.IndexFileInfo;
-import com.bow.maple.indexes.IndexInfo;
+import com.bow.lab.indexes.IndexFileInfo;
+import com.bow.lab.indexes.IndexInfo;
 import com.bow.maple.relations.ColumnInfo;
 import com.bow.maple.relations.ForeignKeyColumnIndexes;
 import com.bow.maple.relations.KeyColumnIndexes;

@@ -93,6 +93,7 @@ public class TableFileInfo {
      * @return the actual database file that holds this table's data, or
      *         <tt>null</tt> if it hasn't yet been set.
      */
+    @Deprecated
     public DBFile getDBFile() {
         return dbFiles.get(0);
     }

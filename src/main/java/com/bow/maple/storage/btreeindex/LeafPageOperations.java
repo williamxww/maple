@@ -4,7 +4,7 @@ package com.bow.maple.storage.btreeindex;
 import java.io.IOException;
 import java.util.List;
 
-import com.bow.maple.indexes.IndexFileInfo;
+import com.bow.lab.indexes.IndexFileInfo;
 import com.bow.maple.storage.DBFile;
 import com.bow.maple.storage.DBPage;
 import org.apache.log4j.Logger;

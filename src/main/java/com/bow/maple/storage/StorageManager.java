@@ -6,8 +6,9 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 
-import com.bow.maple.indexes.IndexFileInfo;
-import com.bow.maple.indexes.IndexManager;
+import com.bow.lab.indexes.IndexFileInfo;
+import com.bow.lab.indexes.IndexManager;
+import com.bow.lab.storage.IndexUpdater;
 import com.bow.maple.relations.TableConstraintType;
 import com.bow.maple.relations.TableSchema;
 import com.bow.maple.server.EventDispatcher;

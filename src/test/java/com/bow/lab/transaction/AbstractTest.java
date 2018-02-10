@@ -35,11 +35,6 @@ public class AbstractTest {
         ExtensionLoader.getExtensionLoader(IStorageService.class).putExtension(storageService);
     }
 
-    public DBPage writeDbPage() throws IOException {
-        DBFile dbFile = storageService.createDBFile("testData", DBFileType.CS_DATA_FILE, DBFile.DEFAULT_PAGESIZE);
-        DBPage dbPage = storageService.loadDBPage(dbFile, 0);
-        dbPage.write(6, new byte[] { 0x1F, 0x2F, 0x3F, 0x4F, 0x5F });
-        return dbPage;
-    }
+
 
 }

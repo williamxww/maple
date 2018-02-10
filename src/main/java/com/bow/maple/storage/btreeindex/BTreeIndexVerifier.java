@@ -3,7 +3,7 @@ package com.bow.maple.storage.btreeindex;
 import com.bow.maple.relations.Tuple;
 import com.bow.maple.expressions.TupleComparator;
 import com.bow.maple.expressions.TupleLiteral;
-import com.bow.maple.indexes.IndexFileInfo;
+import com.bow.lab.indexes.IndexFileInfo;
 import com.bow.maple.storage.DBFile;
 import com.bow.maple.storage.DBPage;
 import com.bow.maple.storage.StorageManager;

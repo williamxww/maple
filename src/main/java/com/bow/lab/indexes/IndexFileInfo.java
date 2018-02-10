@@ -1,4 +1,4 @@
-package com.bow.maple.indexes;
+package com.bow.lab.indexes;
 
 
 import com.bow.maple.relations.ColumnIndexes;
@@ -68,10 +68,10 @@ public class IndexFileInfo {
     /**
      * @param indexName
      * @param tblFileInfo
-     * @param dbFile
+     * @param idxFile
      */
     public IndexFileInfo(String indexName, TableFileInfo tblFileInfo,
-                         DBFile dbFile) {
+                         DBFile idxFile) {
         // if (indexName == null)
         //     throw new IllegalArgumentException("indexName must be specified");
 
@@ -80,7 +80,7 @@ public class IndexFileInfo {
 
         this.indexName = indexName;
         this.tblFileInfo = tblFileInfo;
-        this.dbFile = dbFile;
+        this.dbFile = idxFile;
     }
 
 

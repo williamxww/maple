@@ -4,11 +4,10 @@ import java.util.List;
 
 import com.bow.lab.storage.heap.PageTupleUtil;
 import com.bow.maple.expressions.TupleLiteral;
-import com.bow.maple.indexes.IndexFileInfo;
+import com.bow.lab.indexes.IndexFileInfo;
 import com.bow.maple.relations.ColumnInfo;
 import com.bow.maple.relations.Tuple;
 import com.bow.maple.storage.DBPage;
-import com.bow.maple.storage.PageTuple;
 import com.bow.maple.storage.btreeindex.BTreeIndexManager;
 import com.bow.maple.storage.btreeindex.BTreeIndexPageTuple;
 import com.bow.maple.storage.btreeindex.LeafPage;

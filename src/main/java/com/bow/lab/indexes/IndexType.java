@@ -1,4 +1,4 @@
-package com.bow.maple.indexes;
+package com.bow.lab.indexes;
 
 
 /**

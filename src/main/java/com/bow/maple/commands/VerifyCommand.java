@@ -7,8 +7,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 
-import com.bow.maple.indexes.IndexFileInfo;
-import com.bow.maple.indexes.IndexManager;
+import com.bow.lab.indexes.IndexFileInfo;
+import com.bow.lab.indexes.IndexManager;
 import com.bow.maple.relations.ColumnIndexes;
 import com.bow.maple.relations.TableSchema;
 import com.bow.maple.storage.StorageManager;

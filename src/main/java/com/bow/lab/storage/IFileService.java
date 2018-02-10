@@ -49,4 +49,10 @@ public interface IFileService {
     void deleteDBFile(File f) throws IOException;
 
     void deleteDBFile(DBFile dbFile) throws IOException;
+
+    /**
+     * 获取文件存储位置
+     * @return 文件存储根目录
+     */
+    File getBaseDir();
 }

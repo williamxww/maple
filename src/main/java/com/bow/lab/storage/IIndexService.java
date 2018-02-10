@@ -4,8 +4,9 @@ package com.bow.lab.storage;
 import java.io.IOException;
 import java.util.List;
 
-import com.bow.maple.indexes.IndexFileInfo;
+import com.bow.lab.indexes.IndexFileInfo;
 import com.bow.maple.storage.PageTuple;
+import com.bow.maple.storage.TableFileInfo;
 
 
 /**
@@ -79,4 +80,11 @@ public interface IIndexService {
      * @throws IOException if an IO error occurs while verifying the index
      */
     List<String> verifyIndex(IndexFileInfo idxFileInfo) throws IOException;
+
+    void createIndex(IndexFileInfo idxFileInfo) throws IOException;
+
+    void createUnnamedIndex(IndexFileInfo idxFileInfo) throws IOException;
+
+    IndexFileInfo openIndex(TableFileInfo tblFileInfo, String indexName)
+            throws IOException;
 }
