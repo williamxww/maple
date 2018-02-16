@@ -4,7 +4,7 @@ package com.bow.maple.commands;
 import java.io.IOException;
 
 import com.bow.maple.expressions.Expression;
-import com.bow.maple.expressions.TupleLiteral;
+import com.bow.maple.expressions.LiteralTuple;
 import com.bow.maple.qeval.SimplePlanner;
 import com.bow.maple.qeval.TupleProcessor;
 import com.bow.maple.relations.Schema;
@@ -71,7 +71,7 @@ public class DeleteCommand extends QueryCommand {
 
             // Make a copy of this, because once we delete the tuple, we can't
             // use the "tuple" variable anymore!
-            TupleLiteral oldTuple = new TupleLiteral(tuple);
+            LiteralTuple oldTuple = new LiteralTuple(tuple);
 
             eventDispatch.fireBeforeRowDeleted(tblFileInfo, tuple);
             tableMgr.deleteTuple(tblFileInfo, tuple);

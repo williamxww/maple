@@ -25,6 +25,7 @@ import org.apache.log4j.Logger;
  *
  * @todo This class requires synchronization, once we support multiple clients.
  */
+@Deprecated
 public class StorageManager {
 
     /** A logging object for reporting anything interesting that happens. */
@@ -84,7 +85,7 @@ public class StorageManager {
 
         // Register the component that manages indexes when tables are modified.
         EventDispatcher.getInstance().addRowEventListener(
-            new IndexUpdater(storageMgr));
+            new IndexUpdater());
     }
 
 

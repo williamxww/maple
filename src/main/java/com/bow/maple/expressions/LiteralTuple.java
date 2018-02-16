@@ -1,23 +1,21 @@
 package com.bow.maple.expressions;
 
-
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 
 import com.bow.maple.relations.Tuple;
-
 
 /**
  * {@link Tuple}接口的简单实现，用数组保存各个列的值
  */
-public class TupleLiteral implements Tuple, Serializable {
+public class LiteralTuple implements Tuple, Serializable {
 
     /**
      * 存放tuple中各个列的值
      */
-    private ArrayList<Object> values;
-
+    private List<Object> values;
 
     /**
      * The cached storage size of the tuple literal in bytes, or -1 if the size
@@ -25,30 +23,27 @@ public class TupleLiteral implements Tuple, Serializable {
      */
     private int storageSize = -1;
 
-
     /**
-     * Construct a new tuple-literal that initially has zero columns.  Column
+     * Construct a new tuple-literal that initially has zero columns. Column
      * values can be added with the {@link #addValue} method, or entire tuples
      * can be appended using the {@link #appendTuple} method.
      */
-    public TupleLiteral() {
+    public LiteralTuple() {
         values = new ArrayList<Object>();
     }
-
 
     /**
      * Construct a new tuple-literal with the specified number of columns, each
      * of which is initialized to the SQL <tt>NULL</tt> (Java <tt>null</tt>)
-     * value.  Each column's type-information is also set to <tt>null</tt>.
+     * value. Each column's type-information is also set to <tt>null</tt>.
      *
      * @param numCols the number of columns to create for the tuple
      */
-    public TupleLiteral(int numCols) {
+    public LiteralTuple(int numCols) {
         values = new ArrayList<Object>(numCols);
         for (int i = 0; i < numCols; i++)
             values.add(null);
     }
-
 
     /**
      * Constructs a new tuple-literal that is a copy of the specified tuple.
@@ -57,32 +52,28 @@ public class TupleLiteral implements Tuple, Serializable {
      *
      * @param tuple the tuple to make a copy of
      */
-    public TupleLiteral(Tuple tuple) {
+    public LiteralTuple(Tuple tuple) {
         this();
         appendTuple(tuple);
     }
-
 
     /**
      * Constructs a new tuple-literal that contains the specified values.
      *
      * @param inputs the collection of values to store in the tuple
      */
-    public TupleLiteral(Object... inputs) {
+    public LiteralTuple(Object... inputs) {
         values = new ArrayList<Object>(inputs.length);
         Collections.addAll(values, inputs);
     }
-
 
     public int getStorageSize() {
         return storageSize;
     }
 
-
     public void setStorageSize(int size) {
         storageSize = size;
     }
-
 
     /**
      * In-memory tuples are cacheable!
@@ -93,16 +84,14 @@ public class TupleLiteral implements Tuple, Serializable {
         return true;
     }
 
-
     /**
      * Appends the specified value to the end of the tuple-literal.
      *
-     * @param value the value to append.  This is allowed to be <tt>null</tt>.
+     * @param value the value to append. This is allowed to be <tt>null</tt>.
      */
     public void addValue(Object value) {
         values.add(value);
     }
-
 
     /**
      * Appends the specified tuple's contents to this tuple-literal object.
@@ -118,7 +107,6 @@ public class TupleLiteral implements Tuple, Serializable {
         for (int i = 0; i < tuple.getColumnCount(); i++)
             values.add(tuple.getColumnValue(i));
     }
-
 
     // Let javadoc copy the comments.
     @Override
@@ -143,12 +131,11 @@ public class TupleLiteral implements Tuple, Serializable {
     public void setColumnValue(int colIndex, Object value) {
         values.set(colIndex, value);
     }
-    
-    
+
     @Override
     public String toString() {
         StringBuilder buf = new StringBuilder();
-        buf.append("TL[");
+        buf.append("LT[");
 
         boolean first = true;
         for (Object obj : values) {
@@ -164,7 +151,7 @@ public class TupleLiteral implements Tuple, Serializable {
         }
 
         buf.append(']');
-        
+
         return buf.toString();
     }
 }

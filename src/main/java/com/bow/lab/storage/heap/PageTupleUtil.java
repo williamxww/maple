@@ -222,7 +222,7 @@ public class PageTupleUtil {
     }
 
     /**
-     * 给colIndex对应的nullFlag设置0/1
+     * 在nullFlag中，将colIndex对应的bit设置0/1, value=true时设置为1，反之
      *
      * @param dbPage 数据页
      * @param tupleStart tuple起始位置

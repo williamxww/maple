@@ -14,8 +14,11 @@ import com.bow.lab.storage.heap.PageTupleUtil;
 import com.bow.lab.transaction.ITransactionService;
 import com.bow.maple.relations.ColumnInfo;
 import com.bow.maple.relations.ColumnType;
+import com.bow.maple.relations.ForeignKeyColumnIndexes;
+import com.bow.maple.relations.KeyColumnIndexes;
 import com.bow.maple.relations.SQLDataType;
 import com.bow.maple.relations.Schema;
+import com.bow.maple.relations.TableConstraintType;
 import com.bow.maple.relations.TableSchema;
 import com.bow.maple.relations.Tuple;
 import com.bow.maple.storage.DBFile;
@@ -47,7 +50,7 @@ public class SimpleTableService implements ITableService {
     /**
      * 页的数据结构
      */
-    private IPageStructure pageStructure = ExtensionLoader.getExtensionLoader(IPageStructure.class).getExtension();
+    private IPageStructure pageStructure = new HeapPageStructure();
 
     /**
      * 已打开的表
@@ -66,6 +69,9 @@ public class SimpleTableService implements ITableService {
      *
      * |  1B      |  1B  |   1B     |  XB   |  1B  |   1B     |  XB   |...
      * |numColumns|TypeID|colNameLen|colName|TypeID|colNameLen|colName|...
+     *
+     * |       1B     |       1B     |   1B  | 1B  | 1B  |...|   1B    |
+     * |constraintType|constraintName|colSize|conNo|conNo|...|indexName|
      * </pre>
      * 
      * @param tblFileInfo 表信息
@@ -103,11 +109,98 @@ public class SimpleTableService implements ITableService {
             // 写列名称
             hpWriter.writeVarString255(colInfo.getName());
         }
+
+        // 写主键，候选键，外键，其他非唯一索引
+        int numConstraints = schema.numCandidateKeys() + schema.numForeignKeys();
+        KeyColumnIndexes pk = schema.getPrimaryKey();
+        if (pk != null) {
+            numConstraints++;
+        }
+        LOGGER.debug("Writing " + numConstraints + " constraints");
+        int constraintStartIndex = hpWriter.getPosition();
+        hpWriter.writeByte(numConstraints);
+        // 写主键
+        if (pk != null) {
+            writeKey(hpWriter, TableConstraintType.PRIMARY_KEY, pk);
+        }
+        // 写候选键(唯一索引)
+        for (KeyColumnIndexes ck : schema.getCandidateKeys()) {
+            writeKey(hpWriter, TableConstraintType.UNIQUE, ck);
+        }
+        // 写外键
+        for (ForeignKeyColumnIndexes fk : schema.getForeignKeys()) {
+            writeForeignKey(hpWriter, fk);
+        }
+        LOGGER.debug("Constraints occupy " + (hpWriter.getPosition() - constraintStartIndex) + " bytes in the schema");
+
+        // 写出schema大小
         int schemaSize = hpWriter.getPosition() - HeaderPage.OFFSET_NCOLS;
         headerPage.writeShort(HeaderPage.OFFSET_SCHEMA_SIZE, schemaSize);
 
         // 写WAL
         txnService.recordPageUpdate(headerPage);
+    }
+
+    /**
+     * This helper function writes a primary key or candidate key to the table's
+     * schema stored in the header page.
+     *
+     * @param hpWriter the writer being used to write the table's schema to its
+     *        header page
+     *
+     * @param type the constraint type, either
+     *        {@link TableConstraintType#PRIMARY_KEY} or
+     *        {@link TableConstraintType#FOREIGN_KEY}.
+     *
+     * @param key a specification of what columns appear in the key
+     *
+     * @throws IllegalArgumentException if the <tt>type</tt> argument is
+     *         <tt>null</tt>, or is not one of the accepted values
+     */
+    private void writeKey(PageWriter hpWriter, TableConstraintType type, KeyColumnIndexes key) {
+
+        if (type == TableConstraintType.PRIMARY_KEY) {
+            LOGGER.debug(" * Primary key {}, enforced with index {}", key, key.getIndexName());
+        } else if (type == TableConstraintType.UNIQUE) {
+            LOGGER.debug(" * Candidate key {}, enforced with index {}", key, key.getIndexName());
+        } else {
+            throw new IllegalArgumentException("Invalid TableConstraintType value " + type);
+        }
+        int typeVal = type.getTypeID();
+        String cName = key.getConstraintName();
+        if (cName != null) {
+            typeVal |= 0x80;
+        }
+        hpWriter.writeByte(typeVal);
+        if (cName != null) {
+            hpWriter.writeVarString255(cName);
+        }
+        hpWriter.writeByte(key.size());
+        for (int i = 0; i < key.size(); i++) {
+            hpWriter.writeByte(key.getCol(i));
+        }
+        // This should always be specified.
+        hpWriter.writeVarString255(key.getIndexName());
+    }
+
+    private void writeForeignKey(PageWriter hpWriter, ForeignKeyColumnIndexes key) {
+        LOGGER.debug(" * Foreign key " + key);
+        int type = TableConstraintType.FOREIGN_KEY.getTypeID();
+        if (key.getConstraintName() != null) {
+            type |= 0x80;
+        }
+
+        hpWriter.writeByte(type);
+        if (key.getConstraintName() != null) {
+            hpWriter.writeVarString255(key.getConstraintName());
+        }
+
+        hpWriter.writeVarString255(key.getRefTable());
+        hpWriter.writeByte(key.size());
+        for (int i = 0; i < key.size(); i++) {
+            hpWriter.writeByte(key.getCol(i));
+            hpWriter.writeByte(key.getRefCol(i));
+        }
     }
 
     @Override
@@ -186,10 +279,110 @@ public class SimpleTableService implements ITableService {
             schema.addColumnInfo(colInfo);
         }
 
+        // Read all details of key constraints, foreign keys, and indexes:
+        int numConstraints = hpReader.readUnsignedByte();
+        LOGGER.debug("Reading " + numConstraints + " constraints");
+        for (int i = 0; i < numConstraints; i++) {
+            int cTypeID = hpReader.readUnsignedByte();
+            TableConstraintType cType = TableConstraintType.findType((byte) (cTypeID & 0x7F));
+            if (cType == null) {
+                throw new IOException("Unrecognized constraint-type value " + cTypeID);
+            }
+            switch (cType) {
+                case PRIMARY_KEY:
+                    schema.setPrimaryKey(readKey(hpReader, cTypeID, TableConstraintType.PRIMARY_KEY));
+                    break;
+
+                case UNIQUE:
+                    schema.addCandidateKey(readKey(hpReader, cTypeID, TableConstraintType.UNIQUE));
+                    break;
+
+                case FOREIGN_KEY:
+                    schema.addForeignKey(readForeignKey(hpReader, cTypeID));
+                    break;
+
+                default:
+                    throw new IOException("Encountered unhandled constraint type " + cType);
+            }
+        }
+
         // 设置表的统计信息
         tblFileInfo.setStats(HeaderPage.getTableStats(headerPage, tblFileInfo));
         // unpin page
         storageService.unpinDBPage(headerPage);
+    }
+
+    /**
+     * This helper function writes a primary key or candidate key to the table's
+     * schema stored in the header page.
+     *
+     * @param hpReader the writer being used to write the table's schema to its
+     *        header page
+     *
+     * @param typeID the unsigned-byte value read from the table's header page,
+     *        corresponding to this key's type. Although this value is already
+     *        parsed before calling this method, it also contains flags that
+     *        this method handles, so it must be passed in as well.
+     *
+     * @param type the constraint type, either
+     *        {@link TableConstraintType#PRIMARY_KEY} or
+     *        {@link TableConstraintType#FOREIGN_KEY}.
+     *
+     * @return a specification of the key, including its name, what columns
+     *         appear in the key, and what index is used to enforce the key
+     *
+     * @throws IllegalArgumentException if the <tt>type</tt> argument is
+     *         <tt>null</tt>, or is not one of the accepted values
+     */
+    private KeyColumnIndexes readKey(PageReader hpReader, int typeID, TableConstraintType type) {
+
+        if (type == TableConstraintType.PRIMARY_KEY) {
+            LOGGER.debug(" * Reading primary key");
+        } else if (type == TableConstraintType.UNIQUE) {
+            LOGGER.debug(" * Reading candidate key");
+        } else {
+            throw new IllegalArgumentException("Invalid TableConstraintType value " + type);
+        }
+
+        String constraintName = null;
+        if ((typeID & 0x80) != 0)
+            constraintName = hpReader.readVarString255();
+
+        int keySize = hpReader.readUnsignedByte();
+        int[] keyCols = new int[keySize];
+        for (int i = 0; i < keySize; i++)
+            keyCols[i] = hpReader.readUnsignedByte();
+
+        // This should always be specified.
+        String indexName = hpReader.readVarString255();
+
+        KeyColumnIndexes key = new KeyColumnIndexes(indexName, keyCols);
+        key.setConstraintName(constraintName);
+
+        return key;
+    }
+
+    private ForeignKeyColumnIndexes readForeignKey(PageReader hpReader, int typeID) {
+        LOGGER.debug(" * Reading foreign key");
+
+        String constraintName = null;
+        if ((typeID & 0x80) != 0)
+            constraintName = hpReader.readVarString255();
+
+        String refTableName = hpReader.readVarString255();
+        int keySize = hpReader.readUnsignedByte();
+
+        int[] keyCols = new int[keySize];
+        int[] refCols = new int[keySize];
+        for (int i = 0; i < keySize; i++) {
+            keyCols[i] = hpReader.readUnsignedByte();
+            refCols[i] = hpReader.readUnsignedByte();
+        }
+
+        ForeignKeyColumnIndexes fk = new ForeignKeyColumnIndexes(keyCols, refTableName, refCols);
+        fk.setConstraintName(constraintName);
+
+        return fk;
     }
 
     @Override
@@ -385,7 +578,7 @@ public class SimpleTableService implements ITableService {
             pageStructure.initNewPage(dbPage);
         }
 
-        //分配空间，将tuple放入
+        // 分配空间，将tuple放入
         int slot = pageStructure.allocNewTuple(dbPage, tupSize);
         int tupOffset = pageStructure.getSlotValue(dbPage, slot);
         LOGGER.debug("New tuple will reside on page {}, slot {}.", pageNo, slot);

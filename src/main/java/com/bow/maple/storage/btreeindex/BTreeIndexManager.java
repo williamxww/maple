@@ -10,7 +10,7 @@ import com.bow.lab.storage.heap.PageTupleUtil;
 import com.bow.maple.expressions.TupleComparator;
 import org.apache.log4j.Logger;
 
-import com.bow.maple.expressions.TupleLiteral;
+import com.bow.maple.expressions.LiteralTuple;
 
 import com.bow.lab.indexes.IndexFileInfo;
 import com.bow.lab.indexes.IndexInfo;
@@ -209,7 +209,7 @@ public class BTreeIndexManager implements IndexManager {
 
         // These are the values we store into the index for the tuple:  the key,
         // and a file-pointer to the tuple that the key is for.
-        TupleLiteral newTupleKey = makeStoredKeyValue(idxFileInfo, tup);
+        LiteralTuple newTupleKey = makeStoredKeyValue(idxFileInfo, tup);
 
         logger.debug("Adding search-key value " + newTupleKey + " to index " +
             idxFileInfo.getIndexName());
@@ -271,8 +271,8 @@ public class BTreeIndexManager implements IndexManager {
      *         structure
      */
     private LeafPage navigateToLeafPage(IndexFileInfo idxFileInfo,
-        TupleLiteral searchKey, boolean createIfNeeded,
-        List<Integer> pagePath) throws IOException {
+                                        LiteralTuple searchKey, boolean createIfNeeded,
+                                        List<Integer> pagePath) throws IOException {
 
         String indexName = idxFileInfo.getIndexName();
 
@@ -464,7 +464,7 @@ public class BTreeIndexManager implements IndexManager {
 
 
     /**
-     * This helper function creates a {@link TupleLiteral} that holds the
+     * This helper function creates a {@link LiteralTuple} that holds the
      * key-values necessary for storing or deleting the specified table-tuple
      * in the index.  Specifically, this method stores the tuple's file-pointer
      * in the key as the last value.
@@ -477,14 +477,14 @@ public class BTreeIndexManager implements IndexManager {
      * @return a tuple-literal that can be used for storing, looking up, or
      *         deleting the specific tuple {@code ptup}.
      */
-    private TupleLiteral makeStoredKeyValue(IndexFileInfo idxFileInfo,
-                                                 PageTuple ptup) {
+    private LiteralTuple makeStoredKeyValue(IndexFileInfo idxFileInfo,
+                                            PageTuple ptup) {
 
         // Figure out what columns from the table we use for the index keys.
         ColumnIndexes colIndexes = idxFileInfo.getTableColumnIndexes();
         
         // Build up a new tuple-literal containing the new key to be inserted.
-        TupleLiteral newKeyVal = new TupleLiteral();
+        LiteralTuple newKeyVal = new LiteralTuple();
         for (int i = 0; i < colIndexes.size(); i++)
             newKeyVal.addValue(ptup.getColumnValue(colIndexes.getCol(i)));
 

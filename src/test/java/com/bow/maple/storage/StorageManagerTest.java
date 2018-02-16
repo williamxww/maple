@@ -12,7 +12,7 @@ import com.bow.maple.commands.FromClause;
 import com.bow.maple.commands.SelectClause;
 import com.bow.maple.commands.SelectValue;
 import com.bow.maple.expressions.ColumnName;
-import com.bow.maple.expressions.TupleLiteral;
+import com.bow.maple.expressions.LiteralTuple;
 import com.bow.maple.plans.PlanNode;
 import com.bow.maple.qeval.EvalStats;
 import com.bow.maple.qeval.Planner;
@@ -77,7 +77,7 @@ public class StorageManagerTest {
 
         // 插入数据
         System.out.println(">>> insert");
-        TupleLiteral tuple = new TupleLiteral();
+        LiteralTuple tuple = new LiteralTuple();
         tuple.addValue(1);
         tuple.addValue(27);
         TableManager tableMgr = tblFileInfo.getTableManager();

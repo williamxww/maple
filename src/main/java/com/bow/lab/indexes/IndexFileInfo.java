@@ -62,7 +62,7 @@ public class IndexFileInfo {
     /**
      * This array of column-info objects describes the schema of the index.
      */
-    private ArrayList<ColumnInfo> columnInfos;
+    private List<ColumnInfo> columnInfos;
 
 
     /**

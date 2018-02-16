@@ -5,7 +5,7 @@ import java.util.List;
 
 import com.bow.lab.storage.IStorageService;
 import com.bow.maple.expressions.TupleComparator;
-import com.bow.maple.expressions.TupleLiteral;
+import com.bow.maple.expressions.LiteralTuple;
 import com.bow.lab.indexes.IndexFileInfo;
 import com.bow.maple.storage.DBFile;
 import com.bow.maple.storage.DBPage;
@@ -69,7 +69,7 @@ public class LeafPageOperations {
      *
      * @throws IOException if an IO error occurs while updating the index
      */
-    public void addEntry(LeafPage leaf, TupleLiteral newTupleKey, List<Integer> pagePath) throws IOException {
+    public void addEntry(LeafPage leaf, LiteralTuple newTupleKey, List<Integer> pagePath) throws IOException {
 
         // Figure out where the new key-value goes in the leaf page.
 
@@ -86,7 +86,7 @@ public class LeafPageOperations {
         }
     }
 
-    private boolean tryMoveLeft(LeafPage page, List<Integer> pagePath, TupleLiteral key) throws IOException {
+    private boolean tryMoveLeft(LeafPage page, List<Integer> pagePath, LiteralTuple key) throws IOException {
         int pathSize = pagePath.size();
         int parentPageNo = 0;
         if (pathSize >= 2){
@@ -134,7 +134,7 @@ public class LeafPageOperations {
     }
 
 
-    private boolean tryMoveRight(LeafPage page, List<Integer> pagePath, TupleLiteral key) throws IOException {
+    private boolean tryMoveRight(LeafPage page, List<Integer> pagePath, LiteralTuple key) throws IOException {
         int pathSize = pagePath.size();
         int bytesRequired = key.getStorageSize();
         IndexFileInfo idxFileInfo = page.getIndexFileInfo();
@@ -183,7 +183,7 @@ public class LeafPageOperations {
         return false;
     }
 
-    private boolean relocateEntriesAndAddKey(LeafPage page, List<Integer> pagePath, TupleLiteral key)
+    private boolean relocateEntriesAndAddKey(LeafPage page, List<Integer> pagePath, LiteralTuple key)
             throws IOException {
 
         int pathSize = pagePath.size();
@@ -220,7 +220,7 @@ public class LeafPageOperations {
      * @param key the key to insert into the pair of leaves
      * @return the first key of {@code nextLeaf}
      */
-    private BTreeIndexPageTuple addEntryToLeafPair(LeafPage prevLeaf, LeafPage nextLeaf, TupleLiteral key) {
+    private BTreeIndexPageTuple addEntryToLeafPair(LeafPage prevLeaf, LeafPage nextLeaf, LiteralTuple key) {
         BTreeIndexPageTuple firstRightKey = nextLeaf.getKey(0);
         if (TupleComparator.compareTuples(key, firstRightKey) < 0) {
             // The new key goes in the left page.
@@ -294,7 +294,7 @@ public class LeafPageOperations {
      * @param key the new key to insert into the leaf node
      * @throws IOException if an IO error occurs during the operation.
      */
-    private void splitLeafAndAddKey(LeafPage leaf, List<Integer> pagePath, TupleLiteral key) throws IOException {
+    private void splitLeafAndAddKey(LeafPage leaf, List<Integer> pagePath, LiteralTuple key) throws IOException {
 
         int pathSize = pagePath.size();
         //当前的pageNo不是路径中的最后一个，就有问题
@@ -310,7 +310,8 @@ public class LeafPageOperations {
         IndexFileInfo idxFileInfo = leaf.getIndexFileInfo();
         DBFile dbFile = idxFileInfo.getDBFile();
         DBPage newDBPage = bTreeIndexService.getNewDataPage(dbFile);
-        LeafPage newLeaf = LeafPage.init(newDBPage, idxFileInfo);
+        LeafPage.init(newDBPage);
+        LeafPage newLeaf = new LeafPage(newDBPage, idxFileInfo);
 
         // 新建的leaf始终跟在本页后面
         leaf.setNextPageNo(newLeaf.getPageNo());

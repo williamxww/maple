@@ -2,7 +2,7 @@ package com.bow.maple.sql;
 
 
 
-import com.bow.maple.expressions.TupleLiteral;
+import com.bow.maple.expressions.LiteralTuple;
 import com.bow.maple.server.CommandResult;
 import com.bow.maple.server.NanoDBServer;
 
@@ -27,23 +27,23 @@ public class TestSelectProject extends SqlTestCase {
      */
     public void testProjectReorderCols() throws Throwable {
         // Columns c, a
-        TupleLiteral[] expected1 = {
-            new TupleLiteral(  10, 1),
-            new TupleLiteral(  20, 2),
-            new TupleLiteral(  30, 3),
-            new TupleLiteral(null, 4),
-            new TupleLiteral(  40, 5),
-            new TupleLiteral(  50, 6)
+        LiteralTuple[] expected1 = {
+            new LiteralTuple(  10, 1),
+            new LiteralTuple(  20, 2),
+            new LiteralTuple(  30, 3),
+            new LiteralTuple(null, 4),
+            new LiteralTuple(  40, 5),
+            new LiteralTuple(  50, 6)
         };
 
         // Columns c, b
-        TupleLiteral[] expected2 = {
-            new TupleLiteral(  10,    "red"),
-            new TupleLiteral(  20, "orange"),
-            new TupleLiteral(  30,     null),
-            new TupleLiteral(null,  "green"),
-            new TupleLiteral(  40, "yellow"),
-            new TupleLiteral(  50,   "blue")
+        LiteralTuple[] expected2 = {
+            new LiteralTuple(  10,    "red"),
+            new LiteralTuple(  20, "orange"),
+            new LiteralTuple(  30,     null),
+            new LiteralTuple(null,  "green"),
+            new LiteralTuple(  40, "yellow"),
+            new LiteralTuple(  50,   "blue")
         };
 
         CommandResult result;
@@ -66,13 +66,13 @@ public class TestSelectProject extends SqlTestCase {
      */
     public void testProjectMath() throws Throwable {
         // Columns a - 10 as am, c * 3 as cm
-        TupleLiteral[] expected = {
-            new TupleLiteral(-9,   30),
-            new TupleLiteral(-8,   60),
-            new TupleLiteral(-7,   90),
-            new TupleLiteral(-6, null),
-            new TupleLiteral(-5,  120),
-            new TupleLiteral(-4,  150)
+        LiteralTuple[] expected = {
+            new LiteralTuple(-9,   30),
+            new LiteralTuple(-8,   60),
+            new LiteralTuple(-7,   90),
+            new LiteralTuple(-6, null),
+            new LiteralTuple(-5,  120),
+            new LiteralTuple(-4,  150)
         };
 
         CommandResult result;
@@ -92,9 +92,9 @@ public class TestSelectProject extends SqlTestCase {
      */
     public void testSelectProjectMath() throws Throwable {
         // Columns b, a - 10 as am, c * 3 as cm
-        TupleLiteral[] expected = {
-            new TupleLiteral(    null, -7,   90),
-            new TupleLiteral("yellow", -5,  120)
+        LiteralTuple[] expected = {
+            new LiteralTuple(    null, -7,   90),
+            new LiteralTuple("yellow", -5,  120)
         };
 
         CommandResult result;

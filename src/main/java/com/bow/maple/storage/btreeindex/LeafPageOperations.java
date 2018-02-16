@@ -10,7 +10,7 @@ import com.bow.maple.storage.DBPage;
 import org.apache.log4j.Logger;
 
 import com.bow.maple.expressions.TupleComparator;
-import com.bow.maple.expressions.TupleLiteral;
+import com.bow.maple.expressions.LiteralTuple;
 import com.bow.maple.storage.StorageManager;
 
 
@@ -19,7 +19,10 @@ import com.bow.maple.storage.StorageManager;
  * performed on leaf nodes.  These operations are provided here and not on the
  * {@link LeafPage} class since they sometimes involve splitting or merging
  * leaf nodes, updating parent nodes, and so forth.
+ *
+ * {@link com.bow.lab.storage.btree.LeafPageOperations}
  */
+@Deprecated
 public class LeafPageOperations {
     /** A logging object for reporting anything interesting that happens. */
     private static Logger logger = Logger.getLogger(LeafPageOperations.class);
@@ -83,7 +86,7 @@ public class LeafPageOperations {
      *
      * @throws IOException if an IO error occurs while updating the index
      */
-    public void addEntry(LeafPage leaf, TupleLiteral newTupleKey,
+    public void addEntry(LeafPage leaf, LiteralTuple newTupleKey,
                          List<Integer> pagePath) throws IOException {
 
         // Figure out where the new key-value goes in the leaf page.
@@ -104,7 +107,7 @@ public class LeafPageOperations {
 
 
     private boolean relocateEntriesAndAddKey(LeafPage page,
-        List<Integer> pagePath, TupleLiteral key) throws IOException {
+        List<Integer> pagePath, LiteralTuple key) throws IOException {
 
         // See if we are able to relocate records either direction to free up
         // space for the new key.
@@ -243,7 +246,7 @@ public class LeafPageOperations {
      * @return the first key of {@code nextLeaf}, after the insert is completed
      */
     private BTreeIndexPageTuple addEntryToLeafPair(LeafPage prevLeaf,
-        LeafPage nextLeaf, TupleLiteral key) {
+        LeafPage nextLeaf, LiteralTuple key) {
 
         BTreeIndexPageTuple firstRightKey = nextLeaf.getKey(0);
         if (TupleComparator.compareTuples(key, firstRightKey) < 0) {
@@ -360,7 +363,7 @@ public class LeafPageOperations {
      * @throws IOException if an IO error occurs during the operation.
      */
     private void splitLeafAndAddKey(LeafPage leaf, List<Integer> pagePath,
-                                    TupleLiteral key) throws IOException {
+                                    LiteralTuple key) throws IOException {
 
         int pathSize = pagePath.size();
         if (pagePath.get(pathSize - 1) != leaf.getPageNo()) {

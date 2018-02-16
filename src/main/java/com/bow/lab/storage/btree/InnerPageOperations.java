@@ -5,7 +5,7 @@ import java.util.List;
 
 import com.bow.lab.storage.IStorageService;
 import com.bow.lab.storage.heap.PageTupleUtil;
-import com.bow.maple.expressions.TupleLiteral;
+import com.bow.maple.expressions.LiteralTuple;
 import com.bow.lab.indexes.IndexFileInfo;
 import com.bow.maple.relations.ColumnInfo;
 import com.bow.maple.relations.Tuple;
@@ -247,7 +247,7 @@ public class InnerPageOperations {
                     logger.debug("Space before relocation:  Inner = " + page.getFreeSpace() + " bytes\t\tSibling = "
                             + prevPage.getFreeSpace() + " bytes");
 
-                    TupleLiteral newParentKey = page.movePointersLeft(prevPage, count, parentKey);
+                    LiteralTuple newParentKey = page.movePointersLeft(prevPage, count, parentKey);
 
                     addEntryToInnerPair(prevPage, page, pagePtr1, key1, pagePtr2);
 
@@ -288,7 +288,7 @@ public class InnerPageOperations {
                     logger.debug("Space before relocation:  Inner = " + page.getFreeSpace() + " bytes\t\tSibling = "
                             + nextPage.getFreeSpace() + " bytes");
 
-                    TupleLiteral newParentKey = page.movePointersRight(nextPage, count, parentKey);
+                    LiteralTuple newParentKey = page.movePointersRight(nextPage, count, parentKey);
 
                     addEntryToInnerPair(page, nextPage, pagePtr1, key1, pagePtr2);
 

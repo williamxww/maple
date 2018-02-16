@@ -1,6 +1,6 @@
 package com.bow.maple.client.swingui;
 
-import com.bow.maple.expressions.TupleLiteral;
+import com.bow.maple.expressions.LiteralTuple;
 import com.bow.maple.relations.Schema;
 
 import javax.swing.table.AbstractTableModel;
@@ -18,7 +18,7 @@ public class TupleTableModel extends AbstractTableModel {
     private Schema schema;
 
 
-    private ArrayList<TupleLiteral> tuples = new ArrayList<TupleLiteral>();
+    private ArrayList<LiteralTuple> tuples = new ArrayList<LiteralTuple>();
 
 
     public void setSchema(Schema schema) {
@@ -29,7 +29,7 @@ public class TupleTableModel extends AbstractTableModel {
     }
 
 
-    public void addTuple(TupleLiteral tuple) {
+    public void addTuple(LiteralTuple tuple) {
         int row = tuples.size();
         tuples.add(tuple);
 
@@ -59,7 +59,7 @@ public class TupleTableModel extends AbstractTableModel {
 
     @Override
     public Object getValueAt(int row, int column) {
-        TupleLiteral t = tuples.get(row);
+        LiteralTuple t = tuples.get(row);
 
         Object value = t.getColumnValue(column);
         if (value == null)

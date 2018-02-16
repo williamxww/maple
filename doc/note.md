@@ -85,8 +85,8 @@ headPage
 |  1B      |  1B  |   1B     |  XB   |  1B  |   1B     |  XB   |...
 |numColumns|TypeID|colNameLen|colName|TypeID|colNameLen|colName|...
 // 存储约束
-|  1B          |  1B          |  1B          |  1B   |  1B    |
-|numConstraints|ConstraintType|ConstraintName|keySize|ColIndex|
+|       1B     |       1B     |   1B  | 1B  | 1B  |...|   1B    |
+|constraintType|constraintName|colSize|conNo|conNo|...|indexName|
 // 存储表统计信息
 |NumDataPages|NumTuples|AvgTupleSize|
 // 列统计信息
@@ -606,3 +606,15 @@ CMD>
 
 ### 创建索引
 
+```
+BTREE_INDEX_FILE
+
+HeaderPage:
+// 存储整体结构数据
+|    1B  |       1B     |  2B   |    2B    |       4B      |    4B    |
+|FileType|encodePageSize|pageNum|rootPageNo|firstLeafPageNo|1stEmptyNo|
+
+LeafPage:
+|    1B  |    2B    |   2B   |
+|pageType|nextPageNo|entryNum|
+```

@@ -16,10 +16,13 @@ com.bow.lab.storage.SimpleTableServiceTest.addTuple
 
 
 btree增加node
-CREATE INDEX idx_v ON person (id);
+CREATE INDEX idx_age ON person (age);
 drop index idx_v;
 ALTER TABLE person DROP INDEX idx_v;
 
 能够创建索引文件
 添加index tuple
 通过索引快速定位到data tuple
+
+
+模型和行为分离，pageTuple里不包含DBPage DBFile，在其子类中实现这部分功能

@@ -5,7 +5,7 @@ import java.io.IOException;
 import java.io.ObjectOutputStream;
 
 import com.bow.maple.relations.Tuple;
-import com.bow.maple.expressions.TupleLiteral;
+import com.bow.maple.expressions.LiteralTuple;
 import com.bow.maple.qeval.TupleProcessor;
 import com.bow.maple.relations.Schema;
 
@@ -39,12 +39,12 @@ public class TupleSender implements TupleProcessor {
 
 
     public void process(Tuple tuple) throws IOException {
-        TupleLiteral tupLit;
+        LiteralTuple tupLit;
         
-        if (!(tuple instanceof TupleLiteral))
-            tupLit = new TupleLiteral(tuple);
+        if (!(tuple instanceof LiteralTuple))
+            tupLit = new LiteralTuple(tuple);
         else
-            tupLit = (TupleLiteral) tuple;
+            tupLit = (LiteralTuple) tuple;
         
         objectOutput.writeObject(tupLit);
     }

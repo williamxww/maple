@@ -1,5 +1,7 @@
 package com.bow.lab.storage.btree;
 
+import static com.bow.lab.storage.TestConstant.IDX_AGE;
+
 import java.io.File;
 import java.io.IOException;
 
@@ -9,12 +11,17 @@ import org.junit.Test;
 import com.bow.lab.indexes.IndexFileInfo;
 import com.bow.lab.indexes.IndexInfo;
 import com.bow.lab.storage.IIndexService;
+import com.bow.lab.storage.ITableService;
+import com.bow.lab.storage.SimpleTableService;
+import com.bow.lab.storage.SimpleTableServiceTest;
+import com.bow.lab.storage.TestConstant;
 import com.bow.lab.transaction.AbstractTest;
+import com.bow.lab.transaction.ITransactionService;
 import com.bow.maple.storage.DBFile;
 import com.bow.maple.storage.DBFileType;
 import com.bow.maple.storage.PageTuple;
 import com.bow.maple.storage.TableFileInfo;
-import com.bow.maple.storage.btreeindex.BTreeIndexPageTuple;
+import com.bow.maple.util.ExtensionLoader;
 
 /**
  * @author vv
@@ -22,14 +29,14 @@ import com.bow.maple.storage.btreeindex.BTreeIndexPageTuple;
  */
 public class BTreeIndexServiceTest extends AbstractTest {
 
-    private static final String TABLE_NAME = "person";
+    private ITableService tableService;
 
-    private static final String IDX_FILE_NAME = "idx_test";
+    private ITransactionService txnService;
 
     private IIndexService indexService;
 
     private void clean() {
-        File file = new File("test/" + IDX_FILE_NAME);
+        File file = new File("test/" + IDX_AGE);
         if (file.exists()) {
             file.delete();
         }
@@ -39,36 +46,37 @@ public class BTreeIndexServiceTest extends AbstractTest {
     public void setup() throws IOException {
         clean();
         super.setup();
+        txnService = ExtensionLoader.getExtensionLoader(ITransactionService.class).getExtension();
+        txnService.initialize();
+        tableService = new SimpleTableService(storageService, txnService);
         indexService = new BTreeIndexService();
     }
 
-    @Test
-    public void initIndexInfo() throws Exception {
-
-        IndexFileInfo idxFileInfo = getIndexFileInfo();
-        indexService.initIndexInfo(idxFileInfo);
-
-        // 将索引刷到磁盘
-        storageService.flushDBFile(idxFileInfo.getDBFile());
-    }
-
-    private IndexFileInfo getIndexFileInfo() throws Exception {
-        TableFileInfo tblFileInfo = new TableFileInfo(TABLE_NAME);
-        tblFileInfo.setFileType(DBFileType.BTREE_INDEX_FILE);
-
+    private IndexFileInfo getIndexFileInfo(TableFileInfo tblFileInfo) throws Exception {
         // 创建索引的实体文件
-        DBFile dbFile = storageService.createDBFile(IDX_FILE_NAME, DBFileType.BTREE_INDEX_FILE,
-                DBFile.DEFAULT_PAGESIZE);
-        IndexFileInfo idxFileInfo = new IndexFileInfo("idx_v", tblFileInfo, (IndexInfo) null);
+        DBFile dbFile = storageService.createDBFile(IDX_AGE, DBFileType.BTREE_INDEX_FILE, DBFile.MIN_PAGESIZE);
+        IndexFileInfo idxFileInfo = new IndexFileInfo(IDX_AGE, tblFileInfo, (IndexInfo) null);
         idxFileInfo.setDBFile(dbFile);
         return idxFileInfo;
     }
 
+    /**
+     * 先要运行{@link SimpleTableServiceTest#createTable()} ,
+     * {@link SimpleTableServiceTest#addTuple()}构造数据
+     * 
+     * @throws Exception
+     */
     @Test
     public void addTuple() throws Exception {
-        PageTuple tuple = new BTreeIndexPageTuple(null, 0, null);
-        IndexFileInfo idxFileInfo = getIndexFileInfo();
+        // 从表中取出第一个tuple
+        TableFileInfo tblFileInfo = tableService.openTable(TestConstant.TABLE_NAME);
+        PageTuple tuple = (PageTuple) tableService.getFirstTuple(tblFileInfo);
+        // 生成一个IndexFileInfo
+        IndexFileInfo idxFileInfo = getIndexFileInfo(tblFileInfo);
+        // 将tuple放入到index中
         indexService.addTuple(idxFileInfo, tuple);
+        // 关闭文件
+        storageService.flushDBFile(idxFileInfo.getDBFile());
     }
 
     @Test

@@ -9,7 +9,7 @@ import java.util.SortedMap;
 import com.bow.maple.commands.SelectValue;
 import com.bow.maple.expressions.ColumnName;
 import com.bow.maple.expressions.Expression;
-import com.bow.maple.expressions.TupleLiteral;
+import com.bow.maple.expressions.LiteralTuple;
 import com.bow.maple.qeval.ColumnStats;
 import com.bow.maple.qeval.PlanCost;
 import com.bow.maple.relations.ColumnInfo;
@@ -226,7 +226,7 @@ public class ProjectNode extends PlanNode {
         environment.addTuple(inputSchema, tuple);
 
         // Create an empty tuple to add values to.
-        TupleLiteral newTuple = new TupleLiteral();
+        LiteralTuple newTuple = new LiteralTuple();
 
         // For each select value, evaluate it and add it to the tuple.
 

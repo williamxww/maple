@@ -1,22 +1,19 @@
 package com.bow.maple.expressions;
 
 
-import com.bow.maple.expressions.TupleLiteral;
-
-
 /**
  * This test class exercises the functionality of the
- * {@link TupleLiteral} class.
+ * {@link LiteralTuple} class.
  **/
 public class TestTupleLiteral {
 
     public void testSimpleCtors() {
-        TupleLiteral tuple;
+        LiteralTuple tuple;
 
-        tuple = new TupleLiteral();
+        tuple = new LiteralTuple();
         assert tuple.getColumnCount() == 0;
 
-        tuple = new TupleLiteral(5);
+        tuple = new LiteralTuple(5);
         assert tuple.getColumnCount() == 5;
         for (int i = 0; i < 5; i++) {
             assert tuple.getColumnValue(i) == null;
@@ -27,7 +24,7 @@ public class TestTupleLiteral {
 
     /** This test exercises the <code>addValue()</code> methods. */
     public void testAddValues() {
-        TupleLiteral tuple = new TupleLiteral();
+        LiteralTuple tuple = new LiteralTuple();
 
         tuple.addValue(new Integer(3));
         tuple.addValue("hello");
@@ -53,12 +50,12 @@ public class TestTupleLiteral {
 
     /** This test exercises the constructor that duplicates a tuple. */
     public void testTupleCtor() {
-        TupleLiteral tuple1 = new TupleLiteral();
+        LiteralTuple tuple1 = new LiteralTuple();
         tuple1.addValue(new Integer(5));
         tuple1.addValue(null);
         tuple1.addValue("hello");
 
-        TupleLiteral tuple2 = new TupleLiteral(tuple1);
+        LiteralTuple tuple2 = new LiteralTuple(tuple1);
         assert(tuple2.getColumnCount() == 3);
 
         assert(tuple2.getColumnValue(0).equals(new Integer(5)));
@@ -72,12 +69,12 @@ public class TestTupleLiteral {
 
     /** This test exercises the <tt>appendTuple()</tt> method. */
     public void testAppendTuple() {
-        TupleLiteral tuple1 = new TupleLiteral();
+        LiteralTuple tuple1 = new LiteralTuple();
         tuple1.addValue(new Integer(5));
         tuple1.addValue(null);
         tuple1.addValue("hello");
 
-        TupleLiteral tuple2 = new TupleLiteral();
+        LiteralTuple tuple2 = new LiteralTuple();
         tuple2.appendTuple(tuple1);
 
         assert(tuple2.getColumnCount() == 3);

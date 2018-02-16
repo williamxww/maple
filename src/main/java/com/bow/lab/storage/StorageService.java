@@ -43,7 +43,7 @@ public class StorageService implements IStorageService {
             throw new IllegalStateException(
                     "A file " + filename + " is already cached in the Buffer Manager!  Does it already exist?");
         }
-        DBFile dbFile = fileService.createDBFile(filename, type, StorageManager.getCurrentPageSize());
+        DBFile dbFile = fileService.createDBFile(filename, type, pageSize);
         bufferService.addFile(dbFile);
         return dbFile;
     }

@@ -2,7 +2,7 @@ package com.bow.maple.sql;
 
 
 
-import com.bow.maple.expressions.TupleLiteral;
+import com.bow.maple.expressions.LiteralTuple;
 import com.bow.maple.server.CommandResult;
 import com.bow.maple.server.NanoDBServer;
 import org.junit.Test;
@@ -28,12 +28,12 @@ public class TestSimpleSelects extends SqlTestCase {
      */
     @Test
     public void testSelectNoPredicate() throws Throwable {
-        TupleLiteral[] expected = {
-            new TupleLiteral(0, null),
-            new TupleLiteral(1, 10),
-            new TupleLiteral(2, 20),
-            new TupleLiteral(3, 30),
-            new TupleLiteral(4, null)
+        LiteralTuple[] expected = {
+            new LiteralTuple(0, null),
+            new LiteralTuple(1, 10),
+            new LiteralTuple(2, 20),
+            new LiteralTuple(3, 30),
+            new LiteralTuple(4, null)
         };
 
         CommandResult result = NanoDBServer.doCommand(
@@ -49,18 +49,18 @@ public class TestSimpleSelects extends SqlTestCase {
      * @throws Exception if any query parsing or execution issues occur.
      */
     public void testSelectSimplePredicates() throws Throwable {
-        TupleLiteral[] expected1 = {
-            new TupleLiteral(1, 10),
-            new TupleLiteral(2, 20)
+        LiteralTuple[] expected1 = {
+            new LiteralTuple(1, 10),
+            new LiteralTuple(2, 20)
         };
 
-        TupleLiteral[] expected2 = {
-            new TupleLiteral(2, 20),
-            new TupleLiteral(3, 30)
+        LiteralTuple[] expected2 = {
+            new LiteralTuple(2, 20),
+            new LiteralTuple(3, 30)
         };
 
-        TupleLiteral[] expected3 = {
-            new TupleLiteral(2, 20)
+        LiteralTuple[] expected3 = {
+            new LiteralTuple(2, 20)
         };
 
         CommandResult result;

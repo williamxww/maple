@@ -2,7 +2,7 @@ package com.bow.maple.relations;
 
 
 import com.bow.maple.expressions.ColumnName;
-import com.bow.maple.expressions.TupleLiteral;
+import com.bow.maple.expressions.LiteralTuple;
 import com.bow.maple.plans.ProjectNode;
 import org.apache.commons.lang.ObjectUtils;
 
@@ -18,7 +18,7 @@ import java.io.Serializable;
  *         a good idea for schema information.  So far there aren't any classes
  *         that really require the ability to mutate column-info objects,
  *         although the biggest candidates are the
- *         {@link TupleLiteral} class and the
+ *         {@link LiteralTuple} class and the
  *         {@link ProjectNode} class, which sometimes
  *         need to generate names for their results.
  */

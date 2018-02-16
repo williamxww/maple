@@ -9,7 +9,7 @@ import java.util.List;
 
 import com.bow.maple.expressions.Environment;
 import com.bow.maple.expressions.Expression;
-import com.bow.maple.expressions.TupleLiteral;
+import com.bow.maple.expressions.LiteralTuple;
 import com.bow.maple.qeval.SimplePlanner;
 import com.bow.maple.qeval.TupleProcessor;
 import com.bow.maple.relations.Schema;
@@ -110,8 +110,8 @@ public class UpdateCommand extends QueryCommand {
 
             // Make copies of the old and new tuple-values so that we can pass
             // them to the before- and after-update handlers.
-            TupleLiteral oldTuple = new TupleLiteral(tuple);
-            TupleLiteral newTuple = new TupleLiteral(tuple);
+            LiteralTuple oldTuple = new LiteralTuple(tuple);
+            LiteralTuple newTuple = new LiteralTuple(tuple);
 
             newValues.clear();
             for (UpdateValue value : values) {

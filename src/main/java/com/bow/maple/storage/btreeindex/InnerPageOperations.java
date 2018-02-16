@@ -9,7 +9,7 @@ import com.bow.maple.relations.Tuple;
 import com.bow.maple.storage.DBFile;
 import org.apache.log4j.Logger;
 
-import com.bow.maple.expressions.TupleLiteral;
+import com.bow.maple.expressions.LiteralTuple;
 import com.bow.lab.indexes.IndexFileInfo;
 import com.bow.maple.relations.ColumnInfo;
 import com.bow.maple.storage.DBPage;
@@ -295,7 +295,7 @@ public class InnerPageOperations {
                         page.getFreeSpace() + " bytes\t\tSibling = " +
                         prevPage.getFreeSpace() + " bytes");
 
-                    TupleLiteral newParentKey =
+                    LiteralTuple newParentKey =
                         page.movePointersLeft(prevPage, count, parentKey);
 
                     addEntryToInnerPair(prevPage, page, pagePtr1, key1, pagePtr2);
@@ -342,7 +342,7 @@ public class InnerPageOperations {
                         page.getFreeSpace() + " bytes\t\tSibling = " +
                         nextPage.getFreeSpace() + " bytes");
 
-                    TupleLiteral newParentKey =
+                    LiteralTuple newParentKey =
                         page.movePointersRight(nextPage, count, parentKey);
 
                     addEntryToInnerPair(page, nextPage, pagePtr1, key1, pagePtr2);

@@ -2,7 +2,7 @@ package com.bow.maple.server;
 
 
 import com.bow.maple.commands.SelectCommand;
-import com.bow.maple.expressions.TupleLiteral;
+import com.bow.maple.expressions.LiteralTuple;
 import com.bow.maple.qeval.TupleProcessor;
 import com.bow.maple.relations.Schema;
 import com.bow.maple.relations.TableSchema;
@@ -33,10 +33,10 @@ public class CommandResult implements Serializable {
 
         public void process(Tuple tuple) {
             // Store the tuple.
-            if (tuple instanceof TupleLiteral)
-                tuples.add((TupleLiteral) tuple);
+            if (tuple instanceof LiteralTuple)
+                tuples.add((LiteralTuple) tuple);
             else
-                tuples.add(new TupleLiteral(tuple));
+                tuples.add(new LiteralTuple(tuple));
         }
 
     }
@@ -74,7 +74,7 @@ public class CommandResult implements Serializable {
      * kept, this will be a collection of the tuples in the order they were
      * produced by the database.
      */
-    private ArrayList<TupleLiteral> tuples = null;
+    private ArrayList<LiteralTuple> tuples = null;
 
 
     public void startExecution() {
@@ -83,7 +83,7 @@ public class CommandResult implements Serializable {
     
     
     public void collectSelectResults(SelectCommand command) {
-        tuples = new ArrayList<TupleLiteral>();
+        tuples = new ArrayList<LiteralTuple>();
         command.setTupleProcessor(new ResultCollector());
     }
 
@@ -139,7 +139,7 @@ public class CommandResult implements Serializable {
     }
 
 
-    public List<TupleLiteral> getTuples() {
+    public List<LiteralTuple> getTuples() {
         return tuples;
     }
 }

@@ -8,7 +8,7 @@ import com.bow.lab.storage.heap.PageTupleUtil;
 import org.apache.log4j.Logger;
 
 import com.bow.maple.expressions.TupleComparator;
-import com.bow.maple.expressions.TupleLiteral;
+import com.bow.maple.expressions.LiteralTuple;
 import com.bow.lab.indexes.IndexFileInfo;
 import com.bow.maple.relations.ColumnInfo;
 import com.bow.maple.storage.DBPage;
@@ -275,7 +275,7 @@ public class LeafPage {
      * @throws IllegalStateException if the specified key already appears in
      *         the leaf page.
      */
-    public void addEntry(TupleLiteral newKey) {
+    public void addEntry(LiteralTuple newKey) {
         if (newKey.getStorageSize() == -1) {
             throw new IllegalArgumentException("New key's storage size must " +
                 "be computed before this method is called.");
@@ -339,7 +339,7 @@ public class LeafPage {
      * @param index the index to insert the key at.  Any existing keys at or
      *        after this index will be shifted over to make room for the new key.
      */
-    private void addEntryAtIndex(TupleLiteral newKey, int index) {
+    private void addEntryAtIndex(LiteralTuple newKey, int index) {
         logger.debug("Leaf-page is starting with data ending at index " +
             endOffset + ", and has " + numEntries + " entries.");
 

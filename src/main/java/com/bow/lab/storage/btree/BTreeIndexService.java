@@ -6,7 +6,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
-import com.bow.lab.indexes.IndexManager;
 import com.bow.lab.storage.IFileService;
 import com.bow.lab.storage.IIndexService;
 import com.bow.lab.storage.heap.PageTupleUtil;
@@ -18,7 +17,7 @@ import org.slf4j.LoggerFactory;
 
 import com.bow.lab.storage.IStorageService;
 import com.bow.maple.expressions.TupleComparator;
-import com.bow.maple.expressions.TupleLiteral;
+import com.bow.maple.expressions.LiteralTuple;
 import com.bow.lab.indexes.IndexFileInfo;
 import com.bow.lab.indexes.IndexInfo;
 import com.bow.maple.relations.ColumnIndexes;
@@ -175,7 +174,7 @@ public class BTreeIndexService implements IIndexService {
     public void addTuple(IndexFileInfo idxFileInfo, PageTuple tup) throws IOException {
 
         // 索引值 (key,file-pointer)
-        TupleLiteral newTupleKey = makeStoredKeyValue(idxFileInfo, tup);
+        LiteralTuple newTupleKey = makeStoredKeyValue(idxFileInfo, tup);
         logger.debug("Adding search-key value " + newTupleKey + " to index " + idxFileInfo.getIndexName());
         // Navigate to the leaf-page, creating one if the index is currently
         // empty.
@@ -208,8 +207,8 @@ public class BTreeIndexService implements IIndexService {
      * @return searchKey所在的叶子节点
      * @throws IOException e
      */
-    private LeafPage navigateToLeafPage(IndexFileInfo idxFileInfo, TupleLiteral searchKey, boolean createIfNeeded,
-            List<Integer> pagePath) throws IOException {
+    private LeafPage navigateToLeafPage(IndexFileInfo idxFileInfo, LiteralTuple searchKey, boolean createIfNeeded,
+                                        List<Integer> pagePath) throws IOException {
 
         String indexName = idxFileInfo.getIndexName();
         DBFile dbFile = idxFileInfo.getDBFile();
@@ -300,7 +299,7 @@ public class BTreeIndexService implements IIndexService {
             HeaderPage.setRootPageNo(dbpHeader, rootPageNo);
             HeaderPage.setFirstLeafPageNo(dbpHeader, rootPageNo);
             dbpRoot.writeByte(0, BTREE_LEAF_PAGE);
-            LeafPage.init(dbpRoot, idxFileInfo);
+            LeafPage.init(dbpRoot);
             logger.debug("New root pageNo is " + rootPageNo);
         } else {
             // 索引已有rootPage了，加载它
@@ -371,11 +370,11 @@ public class BTreeIndexService implements IIndexService {
      * @param ptup 原表中的tuple
      * @return 包含索引列值和ptup指针的newKeyVal
      */
-    private TupleLiteral makeStoredKeyValue(IndexFileInfo idxFileInfo, PageTuple ptup) {
+    private LiteralTuple makeStoredKeyValue(IndexFileInfo idxFileInfo, PageTuple ptup) {
         // 找出索引列
         ColumnIndexes colIndexes = idxFileInfo.getTableColumnIndexes();
         // 从tuple中找出索引列的值放到newKeyVal
-        TupleLiteral newKeyVal = new TupleLiteral();
+        LiteralTuple newKeyVal = new LiteralTuple();
         for (int i = 0; i < colIndexes.size(); i++) {
             newKeyVal.addValue(ptup.getColumnValue(colIndexes.getCol(i)));
         }

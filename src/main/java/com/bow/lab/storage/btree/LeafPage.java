@@ -5,7 +5,7 @@ import java.util.List;
 
 import com.bow.lab.storage.heap.PageTupleUtil;
 import com.bow.maple.expressions.TupleComparator;
-import com.bow.maple.expressions.TupleLiteral;
+import com.bow.maple.expressions.LiteralTuple;
 import com.bow.lab.indexes.IndexFileInfo;
 import com.bow.maple.relations.ColumnInfo;
 import com.bow.maple.storage.DBPage;
@@ -106,19 +106,13 @@ public class LeafPage {
      * contents with the type and detail values that will allow a new
      * {@code LeafPage} wrapper to be instantiated for the page, and then it
      * returns a wrapper object for the page.
-     *
      * @param dbPage the page to initialize as a leaf-page.
-     *
-     * @param idxFileInfo details about the index that the leaf-page is for
-     *
      * @return a newly initialized {@code LeafPage} object wrapping the page
      */
-    public static LeafPage init(DBPage dbPage, IndexFileInfo idxFileInfo) {
+    public static void init(DBPage dbPage) {
         dbPage.writeByte(OFFSET_PAGE_TYPE, BTreeIndexManager.BTREE_LEAF_PAGE);
         dbPage.writeShort(OFFSET_NUM_ENTRIES, 0);
         dbPage.writeShort(OFFSET_NEXT_PAGE_NO, 0);
-
-        return new LeafPage(dbPage, idxFileInfo);
     }
 
     /**
@@ -235,7 +229,7 @@ public class LeafPage {
      * @throws IllegalStateException if the specified key already appears in the
      *         leaf page.
      */
-    public void addEntry(TupleLiteral newKey) {
+    public void addEntry(LiteralTuple newKey) {
         if (newKey.getStorageSize() == -1) {
             throw new IllegalArgumentException(
                     "New key's storage size must " + "be computed before this method is called.");
@@ -287,7 +281,7 @@ public class LeafPage {
      * @param newKey the new key to insert into the leaf page
      * @param index 第index个tuple处。
      */
-    private void addEntryAtIndex(TupleLiteral newKey, int index) {
+    private void addEntryAtIndex(LiteralTuple newKey, int index) {
         logger.debug("Leaf-page is starting with data ending at index " + endOffset + ", and has " + numEntries
                 + " entries.");
 

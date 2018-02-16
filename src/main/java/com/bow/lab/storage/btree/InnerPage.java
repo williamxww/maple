@@ -3,7 +3,7 @@ package com.bow.lab.storage.btree;
 import java.util.List;
 
 import com.bow.lab.storage.heap.PageTupleUtil;
-import com.bow.maple.expressions.TupleLiteral;
+import com.bow.maple.expressions.LiteralTuple;
 import com.bow.lab.indexes.IndexFileInfo;
 import com.bow.maple.relations.ColumnInfo;
 import com.bow.maple.relations.Tuple;
@@ -384,7 +384,7 @@ public class InnerPage {
      *       {@code null} because one of the two siblings' pointers will be
      *       removed.
      */
-    public TupleLiteral movePointersLeft(InnerPage leftSibling, int count, Tuple parentKey) {
+    public LiteralTuple movePointersLeft(InnerPage leftSibling, int count, Tuple parentKey) {
 
         if (count < 0 || count > numPointers) {
             throw new IllegalArgumentException("count must be in range [0, " + numPointers + "), got " + count);
@@ -425,13 +425,13 @@ public class InnerPage {
         // Finally, pull out the new parent key, and then clear the area in the
         // source page that no longer holds data.
 
-        TupleLiteral newParentKey = null;
+        LiteralTuple newParentKey = null;
         if (count < numPointers) {
             // There's a key to the right of the last pointer we moved. This
             // will become the new parent key.
             BTreeIndexPageTuple key = keys[count - 1];
             int keyEndOff = key.getEndOffset();
-            newParentKey = new TupleLiteral(key);
+            newParentKey = new LiteralTuple(key);
 
             // Slide left the remainder of the data.
             dbPage.moveDataRange(keyEndOff, OFFSET_FIRST_POINTER, endOffset - keyEndOff);
@@ -485,7 +485,7 @@ public class InnerPage {
      *       {@code null} because one of the two siblings' pointers will be
      *       removed.
      */
-    public TupleLiteral movePointersRight(InnerPage rightSibling, int count, Tuple parentKey) {
+    public LiteralTuple movePointersRight(InnerPage rightSibling, int count, Tuple parentKey) {
 
         if (count < 0 || count > numPointers) {
             throw new IllegalArgumentException("count must be in range [0, " + numPointers + "), got " + count);
@@ -540,13 +540,13 @@ public class InnerPage {
         // Finally, pull out the new parent key, and then clear the area in the
         // source page that no longer holds data.
 
-        TupleLiteral newParentKey = null;
+        LiteralTuple newParentKey = null;
         if (count < numPointers) {
             // There's a key to the left of the last pointer we moved. This
             // will become the new parent key.
             BTreeIndexPageTuple key = keys[startPointerIndex - 1];
             int keyOff = key.getOffset();
-            newParentKey = new TupleLiteral(key);
+            newParentKey = new LiteralTuple(key);
 
             // Cut down the remainder of the data.
             dbPage.setDataRange(keyOff, endOffset - keyOff, (byte) 0);

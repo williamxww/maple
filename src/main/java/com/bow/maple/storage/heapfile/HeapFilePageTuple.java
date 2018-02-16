@@ -1,6 +1,7 @@
 package com.bow.maple.storage.heapfile;
 
 import com.bow.lab.storage.IPageStructure;
+import com.bow.lab.storage.heap.HeapPageTuple;
 import com.bow.lab.storage.heap.PageTupleUtil;
 import com.bow.maple.relations.Tuple;
 import com.bow.maple.storage.DBPage;
@@ -14,7 +15,9 @@ import com.bow.maple.util.ExtensionLoader;
 import java.util.List;
 
 /**
+ * see {@link HeapPageTuple}
  */
+@Deprecated
 public class HeapFilePageTuple extends PageTuple {
 
     /**

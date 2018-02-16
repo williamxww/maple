@@ -7,7 +7,7 @@ import java.util.List;
 import com.bow.maple.relations.Tuple;
 import com.bow.maple.expressions.Expression;
 import com.bow.maple.expressions.ExpressionException;
-import com.bow.maple.expressions.TupleLiteral;
+import com.bow.maple.expressions.LiteralTuple;
 
 import com.bow.maple.qeval.Planner;
 import com.bow.maple.qeval.SimplePlanner;
@@ -28,7 +28,7 @@ import com.bow.maple.storage.TableManager;
  * in which case a select-clause object is evaluated, and its results are stored
  * into the specified table.
  *
- * @see TupleLiteral
+ * @see LiteralTuple
  * @see SelectClause
  */
 public class InsertCommand extends QueryCommand {
@@ -184,7 +184,7 @@ public class InsertCommand extends QueryCommand {
         }
 
         // Build up a tuple-literal from the values we have.
-        TupleLiteral tuple = new TupleLiteral();
+        LiteralTuple tuple = new LiteralTuple();
         for (Expression expr : values) {
             if (expr.hasSymbols()) {
                 throw new ExecutionException(

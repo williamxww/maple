@@ -10,7 +10,7 @@ import org.apache.log4j.Logger;
 
 import com.bow.maple.expressions.OrderByExpression;
 import com.bow.maple.expressions.TupleComparator;
-import com.bow.maple.expressions.TupleLiteral;
+import com.bow.maple.expressions.LiteralTuple;
 import com.bow.maple.qeval.PlanCost;
 
 public class SortNode extends PlanNode {
@@ -143,7 +143,7 @@ public class SortNode extends PlanNode {
                 break;
 
             if (!tup.isCacheable())
-                tup = new TupleLiteral(tup);
+                tup = new LiteralTuple(tup);
 
             sortedResults.add(tup);
         }

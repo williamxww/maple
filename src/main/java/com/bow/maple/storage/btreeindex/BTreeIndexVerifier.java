@@ -2,7 +2,7 @@ package com.bow.maple.storage.btreeindex;
 
 import com.bow.maple.relations.Tuple;
 import com.bow.maple.expressions.TupleComparator;
-import com.bow.maple.expressions.TupleLiteral;
+import com.bow.maple.expressions.LiteralTuple;
 import com.bow.lab.indexes.IndexFileInfo;
 import com.bow.maple.storage.DBFile;
 import com.bow.maple.storage.DBPage;
@@ -248,10 +248,10 @@ public class BTreeIndexVerifier {
             // Make sure the keys are in the proper order in the page.
 
             int numKeys = inner.getNumKeys();
-            ArrayList<TupleLiteral> keys = new ArrayList<TupleLiteral>(numKeys);
+            ArrayList<LiteralTuple> keys = new ArrayList<LiteralTuple>(numKeys);
             if (numKeys > 1) {
                 Tuple prevKey = inner.getKey(0);
-                keys.add(new TupleLiteral(prevKey));
+                keys.add(new LiteralTuple(prevKey));
 
                 if (parentLeftKey != null) {
                     int cmp = TupleComparator.compareTuples(parentLeftKey, prevKey);
@@ -266,7 +266,7 @@ public class BTreeIndexVerifier {
 
                 for (int k = 1; k < numKeys; k++) {
                     Tuple key = inner.getKey(k);
-                    keys.add(new TupleLiteral(key));
+                    keys.add(new LiteralTuple(key));
 
                     int cmp = TupleComparator.compareTuples(prevKey, key);
                     if (cmp == 0) {

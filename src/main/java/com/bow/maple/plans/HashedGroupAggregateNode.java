@@ -9,7 +9,7 @@ import java.util.List;
 
 import com.bow.maple.commands.SelectValue;
 import com.bow.maple.expressions.Expression;
-import com.bow.maple.expressions.TupleLiteral;
+import com.bow.maple.expressions.LiteralTuple;
 import com.bow.maple.functions.AggregateFunction;
 import com.bow.maple.qeval.PlanCost;
 import com.bow.maple.relations.ColumnInfo;
@@ -28,7 +28,7 @@ public abstract class HashedGroupAggregateNode extends GroupAggregateNode {
      * in the input data, along with the aggregate computations that must be
      * performed.
      */
-    private LinkedHashMap<TupleLiteral, ArrayList<AggregateFunction>> aggregates;
+    private LinkedHashMap<LiteralTuple, ArrayList<AggregateFunction>> aggregates;
 
 
     public HashedGroupAggregateNode(List<Expression> groupByExprs,

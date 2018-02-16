@@ -1,7 +1,7 @@
 package com.bow.maple.client.swingui;
 
 
-import com.bow.maple.expressions.TupleLiteral;
+import com.bow.maple.expressions.LiteralTuple;
 import com.bow.maple.relations.Schema;
 
 import java.awt.BorderLayout;
@@ -115,8 +115,8 @@ public class GUIClient {
                             }
                         });
                     }
-                    else if (obj instanceof TupleLiteral) {
-                        final TupleLiteral t = (TupleLiteral) obj;
+                    else if (obj instanceof LiteralTuple) {
+                        final LiteralTuple t = (LiteralTuple) obj;
                         SwingUtilities.invokeAndWait(new Runnable() {
                             @Override
                             public void run() { tupleModel.addTuple(t); }

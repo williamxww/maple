@@ -3,7 +3,7 @@ package com.bow.maple.plans;
 import com.bow.maple.expressions.Expression;
 import com.bow.maple.qeval.ColumnStats;
 import com.bow.maple.relations.Tuple;
-import com.bow.maple.expressions.TupleLiteral;
+import com.bow.maple.expressions.LiteralTuple;
 
 import com.bow.maple.relations.JoinType;
 import com.bow.maple.relations.Schema;
@@ -92,7 +92,7 @@ public abstract class ThetaJoinNode extends PlanNode {
      */
     protected Tuple joinTuples(Tuple left, Tuple right) {
 
-        TupleLiteral joinedTuple = new TupleLiteral();
+        LiteralTuple joinedTuple = new LiteralTuple();
 
         // appendTuple() also copies schema information from the source tuples.
         if (!schemaSwapped) {

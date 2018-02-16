@@ -5,6 +5,7 @@ import java.util.List;
 
 import com.bow.lab.storage.IPageTuple;
 import com.bow.lab.storage.heap.PageTupleUtil;
+import com.bow.maple.expressions.LiteralTuple;
 import com.bow.maple.expressions.TypeConverter;
 import com.bow.maple.relations.SQLDataType;
 import com.bow.maple.relations.Tuple;
@@ -18,7 +19,7 @@ import com.bow.maple.storage.heapfile.HeapFilePageTuple;
  * |null-bitmap|col1|col2|... 注意此pageTuple没有slot的概念。{@link HeapFilePageTuple}
  * 才有slot的概念
  * 
- * @see com.bow.maple.expressions.TupleLiteral tuple接口的简单实现
+ * @see LiteralTuple tuple接口的简单实现
  *
  *      <p>
  *      This class is a partial implementation of the {@link Tuple} interface

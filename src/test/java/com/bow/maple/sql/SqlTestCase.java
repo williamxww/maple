@@ -14,7 +14,7 @@ import com.bow.maple.server.CommandResult;
 import org.apache.commons.io.FileUtils;
 
 import com.bow.maple.expressions.TupleComparator;
-import com.bow.maple.expressions.TupleLiteral;
+import com.bow.maple.expressions.LiteralTuple;
 import com.bow.maple.relations.Tuple;
 import com.bow.maple.server.NanoDBServer;
 import com.bow.maple.storage.StorageManager;
@@ -111,16 +111,16 @@ public class SqlTestCase {
      * @return true if the two collections are the same, regardless of order, or
      *         false if they are not the same.
      */
-    public boolean sameResultsUnordered(TupleLiteral[] expected, List<TupleLiteral> actual) {
+    public boolean sameResultsUnordered(LiteralTuple[] expected, List<LiteralTuple> actual) {
 
         if (expected.length != actual.size())
             return false;
 
-        LinkedList<TupleLiteral> expectedList = new LinkedList<TupleLiteral>();
+        LinkedList<LiteralTuple> expectedList = new LinkedList<LiteralTuple>();
         Collections.addAll(expectedList, expected);
 
         for (Tuple a : actual) {
-            Iterator<TupleLiteral> iter = expectedList.iterator();
+            Iterator<LiteralTuple> iter = expectedList.iterator();
 
             boolean found = false;
             while (iter.hasNext()) {
@@ -147,7 +147,7 @@ public class SqlTestCase {
      * collection of tuples, and returns <tt>true</tt> if the result tuples are
      * the same, regardless of order. This function checks that the command
      * didn't throw any exceptions, before calling the
-     * {@link #sameResultsUnordered(TupleLiteral[], List)} method to compare the
+     * {@link #sameResultsUnordered(LiteralTuple[], List)} method to compare the
      * results themselves.
      *
      * @param expected An array of tuple-literals containing the expected
@@ -161,7 +161,7 @@ public class SqlTestCase {
      * @throws Exception if an error occurred during command execution, as
      *         reported by the command result.
      */
-    public boolean checkUnorderedResults(TupleLiteral[] expected, CommandResult result) throws Exception {
+    public boolean checkUnorderedResults(LiteralTuple[] expected, CommandResult result) throws Exception {
         if (result.failed())
             throw result.getFailure();
 
@@ -179,7 +179,7 @@ public class SqlTestCase {
      * @return true if the two collections are the same, and in the same order,
      *         or false otherwise.
      */
-    public boolean sameResultsOrdered(TupleLiteral[] expected, List<TupleLiteral> actual) {
+    public boolean sameResultsOrdered(LiteralTuple[] expected, List<LiteralTuple> actual) {
 
         if (expected.length != actual.size())
             return false;
@@ -206,7 +206,7 @@ public class SqlTestCase {
      * collection of tuples, and returns <tt>true</tt> if the result tuples are
      * the same, and in the same order. This function checks that the command
      * didn't throw any exceptions, before calling the
-     * {@link #sameResultsOrdered(TupleLiteral[], List)} method to compare the
+     * {@link #sameResultsOrdered(LiteralTuple[], List)} method to compare the
      * results themselves.
      *
      * @param expected An array of tuple-literals containing the expected
@@ -220,7 +220,7 @@ public class SqlTestCase {
      * @throws Exception if an error occurred during command execution, as
      *         reported by the command result.
      */
-    public boolean checkOrderedResults(TupleLiteral[] expected, CommandResult result) throws Exception {
+    public boolean checkOrderedResults(LiteralTuple[] expected, CommandResult result) throws Exception {
         if (result.failed())
             throw result.getFailure();
 
