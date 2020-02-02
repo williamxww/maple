@@ -22,15 +22,7 @@ select * from dual where name =a order by age asc limit 10 offset 1;
 schema : column info 的集合
 RLE:run-length encoding,变动长度编码法,游程编码是一种简单的非破坏性资料压缩法
 
-
-
 LogSequenceNumber，lsn是联系dirty page，redo log record和redo log file的纽带。在每个redo log record被拷贝到内存的log buffer时会产生一个相关联的lsn，而每个页面修改时会产生一个log record，从而每个数据库的page也会有一个相关联的lsn，这个lsn记录在每个page的header字段中。为了保证WAL（Write-Ahead-Logging）要求的逻辑，dirty page要求其关联lsn的log record已经被写入log file才允许执行flush操作
-
-
-
-
-
-
 
 
 
